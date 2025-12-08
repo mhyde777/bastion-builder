@@ -1,0 +1,192 @@
+/* src/components/Canvas.css */
+
+.canvas-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #181818;
+  overflow: hidden;
+  cursor: default;
+  user-select: none;
+}
+
+/* Grid */
+
+.grid-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.grid-line-vertical {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.grid-line-horizontal {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Underlay (level below) */
+
+.underlay-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.underlay-room {
+  position: absolute;
+  background: rgba(80, 80, 160, 0.12);
+  border: 1px dashed rgba(120, 120, 200, 0.3);
+}
+
+.underlay-wall {
+  position: absolute;
+  background: rgba(160, 160, 220, 0.25);
+  border-radius: 2px;
+}
+
+/* Rooms */
+
+.rooms-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.room {
+  position: absolute;
+  background: rgba(120, 120, 120, 0.25);
+  border: 2px solid rgba(220, 220, 220, 0.7);
+  box-sizing: border-box;
+}
+
+/* Draft selection */
+
+.draft-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.draft-cell {
+  position: absolute;
+  background: rgba(0, 200, 255, 0.25);
+  border: 1px solid rgba(0, 200, 255, 0.8);
+  box-sizing: border-box;
+}
+
+.draft-preview-cell {
+  position: absolute;
+  background: rgba(0, 200, 255, 0.15);
+  border: 1px dashed rgba(0, 200, 255, 0.6);
+  box-sizing: border-box;
+}
+
+/* Shape toolbar */
+
+.shape-toolbar {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
+  background: #222;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  z-index: 10;
+}
+
+.shape-toolbar button {
+  border: none;
+  padding: 2px 6px;
+  font-size: 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  background: #444;
+  color: #f0f0f0;
+}
+
+.shape-toolbar button:hover {
+  background: #666;
+}
+
+/* Walls */
+
+.walls-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.wall {
+  position: absolute;
+  background: #f0f0f0;
+  border-radius: 2px;
+}
+
+.draft-wall {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Doors */
+
+.doors-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.door {
+  position: absolute;
+  background: #2ecc71;
+  border-radius: 2px;
+}
+
+.draft-door {
+  background: rgba(46, 204, 113, 0.6);
+}
+
+/* Windows */
+
+.windows-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 7;
+}
+
+.window-opening {
+  position: absolute;
+  background: #3498db;
+  border-radius: 2px;
+}
+
+.draft-window {
+  background: rgba(52, 152, 219, 0.6);
+}
+
+/* Hover cell */
+
+.hover-cell {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.06);
+  z-index: 8;
+}
+
