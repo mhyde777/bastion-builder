@@ -1,12 +1,16 @@
 // src/components/HomeScreen.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "../theme";
 
 interface ProjectSummary {
   id: string;
   name: string;
   version: number;
 }
+
+// Local Theme type (do not import Theme from ../theme to avoid runtime issues)
+type Theme = "light" | "dark" | "blueprint";
 
 export const HomeScreen: React.FC = () => {
   const [projects, setProjects] = useState<
@@ -21,6 +25,7 @@ export const HomeScreen: React.FC = () => {
   >(null);
 
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -69,10 +74,10 @@ export const HomeScreen: React.FC = () => {
   }
 
   async function handleDeleteProject(id: string) {
-    const confirm = window.confirm(
+    const confirmDelete = window.confirm(
       "Delete this project? This cannot be undone."
     );
-    if (!confirm) return;
+    if (!confirmDelete) return;
 
     try {
       setDeletingId(id);
@@ -93,13 +98,34 @@ export const HomeScreen: React.FC = () => {
     }
   }
 
+  function handleThemeChange(
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) {
+    setTheme(e.target.value as Theme);
+  }
+
   if (loading) {
     return <div className="home-root">Loading…</div>;
   }
 
   return (
     <div className="home-root">
-      <h1>Bastion Builder</h1>
+      <header className="home-header">
+        <h1>Bastion Builder</h1>
+        <div className="theme-selector">
+          <label>
+            Theme:{" "}
+            <select
+              value={theme}
+              onChange={handleThemeChange}
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="blueprint">Blueprint</option>
+            </select>
+          </label>
+        </div>
+      </header>
 
       {error && (
         <div className="error-banner">{error}</div>

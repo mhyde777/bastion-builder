@@ -43,6 +43,7 @@ import {
   removeWallsAndOpenings,
 } from "../utils/erase";
 import { normalizeWall } from "../utils/walls";
+import { useTheme } from "../theme";
 
 interface CanvasProps {
   geometry: FloorGeometry;
@@ -51,6 +52,7 @@ interface CanvasProps {
   setCamera: (cam: CameraState) => void;
   currentTool: Tool;
   onCommitGeometry: (newGeom: FloorGeometry) => void;
+  onSelectRoom?: (roomId: string | null) => void;
 }
 
 type MouseButton = 0 | 1 | 2;
@@ -61,6 +63,74 @@ interface OpeningDraft {
   tCurrent: number;
 }
 
+// Palette used by all layers based on theme
+interface CanvasPalette {
+  gridLine: string;
+  roomFill: string;
+  roomFillDimmed: string;
+  wall: string;
+  wallDimmed: string;
+  door: string;
+  window: string;
+  selectionSolid: string;
+  selectionPreview: string;
+  draftWall: string;
+  draftOpening: string;
+  hoverBorder: string;
+}
+
+function getCanvasPalette(theme: string): CanvasPalette {
+  if (theme === "dark") {
+    return {
+      gridLine: "rgba(255,255,255,0.35)",
+      roomFill: "rgba(135,206,250,0.30)",
+      roomFillDimmed: "rgba(135,206,250,0.12)",
+      wall: "rgba(255,255,255,0.80)",
+      wallDimmed: "rgba(255,255,255,0.30)",
+      door: "rgba(144,238,144,0.95)",
+      window: "rgba(173,216,230,0.95)",
+      selectionSolid: "rgba(135,206,250,0.55)",
+      selectionPreview: "rgba(135,206,250,0.28)",
+      draftWall: "rgba(255,255,255,0.55)",
+      draftOpening: "rgba(144,238,144,0.65)",
+      hoverBorder: "rgba(255,255,255,0.65)",
+    };
+  }
+
+  if (theme === "blueprint") {
+    return {
+      gridLine: "rgba(0,255,255,0.45)",
+      roomFill: "rgba(0,191,255,0.30)",
+      roomFillDimmed: "rgba(0,191,255,0.14)",
+      wall: "rgba(240,248,255,0.90)",
+      wallDimmed: "rgba(240,248,255,0.40)",
+      door: "rgba(144,238,144,0.95)",
+      window: "rgba(176,224,230,0.95)",
+      selectionSolid: "rgba(135,206,250,0.60)",
+      selectionPreview: "rgba(135,206,250,0.30)",
+      draftWall: "rgba(240,248,255,0.70)",
+      draftOpening: "rgba(144,238,144,0.70)",
+      hoverBorder: "rgba(240,248,255,0.70)",
+    };
+  }
+
+  // light theme
+  return {
+    gridLine: "rgba(0,0,0,0.25)",
+    roomFill: "rgba(0,0,120,0.22)",
+    roomFillDimmed: "rgba(0,0,120,0.10)",
+    wall: "rgba(0,0,0,0.80)",
+    wallDimmed: "rgba(0,0,0,0.20)",
+    door: "rgba(0,180,0,0.85)",
+    window: "rgba(0,150,200,0.85)",
+    selectionSolid: "rgba(50,150,255,0.35)",
+    selectionPreview: "rgba(50,150,255,0.20)",
+    draftWall: "rgba(0,0,0,0.45)",
+    draftOpening: "rgba(0,255,0,0.50)",
+    hoverBorder: "rgba(0,0,0,0.45)",
+  };
+}
+
 export const Canvas: React.FC<CanvasProps> = ({
   geometry,
   underlayGeometry,
@@ -68,8 +138,19 @@ export const Canvas: React.FC<CanvasProps> = ({
   setCamera,
   currentTool,
   onCommitGeometry,
+  onSelectRoom,
 }) => {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const { theme } = useTheme();
+  const palette = getCanvasPalette(theme);
+
+  // theme-driven background for the grid area
+  const canvasBackground =
+    theme === "dark"
+      ? "#101010"
+      : theme === "blueprint"
+      ? "#00152e"
+      : "#f4f4f8";
 
   // Room tool draft
   const [dragStartCell, setDragStartCell] =
@@ -101,7 +182,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [hoverCell, setHoverCell] =
     useState<GridPoint | null>(null);
 
-  // For Ctrl/Cmd+Z from inside canvas
+  // For Ctrl/Cmd+Z from inside canvas (noop for now)
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (
@@ -109,7 +190,6 @@ export const Canvas: React.FC<CanvasProps> = ({
         e.key.toLowerCase() === "z"
       ) {
         e.preventDefault();
-        // parent supplies Undo via ToolPalette; keep here as noop
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -123,14 +203,6 @@ export const Canvas: React.FC<CanvasProps> = ({
       ? el.getBoundingClientRect()
       : new DOMRect(0, 0, 1, 1);
   }, []);
-
-  function isOverSelectionToolbar(
-    e: React.MouseEvent
-  ): boolean {
-    const target = e.target as HTMLElement | null;
-    if (!target) return false;
-    return !!target.closest(".selection-toolbar");
-  }
 
   function handleWheel(e: React.WheelEvent) {
     e.preventDefault();
@@ -151,12 +223,21 @@ export const Canvas: React.FC<CanvasProps> = ({
     setPanLast({ x: e.clientX, y: e.clientY });
   }
 
+  function endPan() {
+    setIsPanning(false);
+    setPanLast(null);
+  }
+
   function handleMouseDown(e: React.MouseEvent) {
-    if (isOverSelectionToolbar(e)) return;
     e.preventDefault();
+
+    const target = e.target as HTMLElement;
+    if (target.closest(".selection-toolbar")) {
+      return;
+    }
+
     const button = e.button as MouseButton;
 
-    // Middle or right button always pan
     if (button === 1 || button === 2) {
       beginPan(e);
       return;
@@ -170,6 +251,18 @@ export const Canvas: React.FC<CanvasProps> = ({
       camera,
       GRID_SIZE
     );
+
+    if (currentTool === Tool.Room && button === 0) {
+      const existing = findRoomAtGrid(
+        cell.x,
+        cell.y,
+        geometry.rooms
+      );
+      if (existing) {
+        onSelectRoom?.(existing.id);
+        return;
+      }
+    }
 
     if (currentTool === Tool.Pan && button === 0) {
       beginPan(e);
@@ -212,13 +305,10 @@ export const Canvas: React.FC<CanvasProps> = ({
 
     if (currentTool === Tool.Erase && button === 0) {
       handleEraseAtPoint(e.clientX, e.clientY);
-      // keep erasing on drag
     }
   }
 
   function handleMouseMove(e: React.MouseEvent) {
-    if (isOverSelectionToolbar(e)) return;
-
     const rect = getRootRect();
     const cell = screenToGrid(
       e.clientX,
@@ -229,7 +319,6 @@ export const Canvas: React.FC<CanvasProps> = ({
     );
     setHoverCell(cell);
 
-        // Pan
     if (isPanning && panLast) {
       const dx = e.clientX - panLast.x;
       const dy = e.clientY - panLast.y;
@@ -238,19 +327,16 @@ export const Canvas: React.FC<CanvasProps> = ({
       return;
     }
 
-    // Room drag
     if (dragStartCell) {
       setDragCurrentCell(cell);
       return;
     }
 
-    // Wall drag
     if (wallStartCell) {
       setWallCurrentCell(cell);
       return;
     }
 
-    // Opening drag
     if (openingDraft) {
       const hit = hitTestWallAtPoint(
         [openingDraft.wall],
@@ -267,26 +353,22 @@ export const Canvas: React.FC<CanvasProps> = ({
       }
     }
 
-    // Erase drag
     if (
       currentTool === Tool.Erase &&
-      e.buttons & 1 // left button held
+      e.buttons & 1
     ) {
       handleEraseAtPoint(e.clientX, e.clientY);
     }
   }
 
   function handleMouseUp(e: React.MouseEvent) {
-    if (isOverSelectionToolbar(e)) return;
-
     const button = e.button as MouseButton;
 
     if (
       isPanning &&
-      (button === 1 || button === 2 || currentTool === Tool.Pan)
+      (button === 0 || button === 1 || button === 2)
     ) {
-      setIsPanning(false);
-      setPanLast(null);
+      endPan();
       return;
     }
 
@@ -373,6 +455,10 @@ export const Canvas: React.FC<CanvasProps> = ({
   function handleMouseLeave() {
     setHoverCell(null);
     setDragCurrentCell(null);
+
+    if (isPanning) {
+      endPan();
+    }
   }
 
   function finalizeWallDraft(
@@ -390,10 +476,8 @@ export const Canvas: React.FC<CanvasProps> = ({
     if (dx === 0 && dy === 0) return null;
 
     if (dx >= dy) {
-      // horizontal
       y2 = y1;
     } else {
-      // vertical
       x2 = x1;
     }
 
@@ -419,7 +503,6 @@ export const Canvas: React.FC<CanvasProps> = ({
       GRID_SIZE
     );
 
-    // First try walls in screen space
     const hit = hitTestWallAtPoint(
       geometry.walls,
       clientX,
@@ -436,7 +519,6 @@ export const Canvas: React.FC<CanvasProps> = ({
       return;
     }
 
-    // Then rooms
     const room = findRoomAtGrid(
       cell.x,
       cell.y,
@@ -473,7 +555,6 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
 
     if (hasRoomOverlap(geometry.rooms, room)) {
-      // reject, clear draft
       setSelectedCells(new Set());
       return;
     }
@@ -488,6 +569,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       walls: [...geometry.walls, ...walls],
     };
     onCommitGeometry(newGeom);
+    onSelectRoom?.(room.id);
     setSelectedCells(new Set());
   }
 
@@ -495,7 +577,6 @@ export const Canvas: React.FC<CanvasProps> = ({
     setSelectedCells(new Set());
   }
 
-  // Floating confirmation toolbar position
   const selectionToolbarStyle = (() => {
     if (selectedCells.size === 0) return null;
     const cells = Array.from(selectedCells);
@@ -523,25 +604,27 @@ export const Canvas: React.FC<CanvasProps> = ({
     };
   })();
 
-  // Render
   return (
     <div
       ref={rootRef}
       className="canvas-root"
+      style={{ backgroundColor: canvasBackground }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
+      onContextMenu={e => e.preventDefault()}
     >
       {/* Grid */}
-      <GridLayer camera={camera} />
+      <GridLayer camera={camera} palette={palette} />
 
       {/* Underlay geometry */}
       {underlayGeometry && (
         <GeometryLayer
           geometry={underlayGeometry}
           camera={camera}
+          palette={palette}
           dimmed
         />
       )}
@@ -550,6 +633,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       <GeometryLayer
         geometry={geometry}
         camera={camera}
+        palette={palette}
       />
 
       {/* Draft room selection */}
@@ -558,6 +642,7 @@ export const Canvas: React.FC<CanvasProps> = ({
         dragStartCell={dragStartCell}
         dragCurrentCell={dragCurrentCell}
         camera={camera}
+        palette={palette}
       />
 
       {/* Draft wall */}
@@ -565,18 +650,21 @@ export const Canvas: React.FC<CanvasProps> = ({
         start={wallStartCell}
         current={wallCurrentCell}
         camera={camera}
+        palette={palette}
       />
 
       {/* Draft door/window */}
       <DraftOpeningLayer
         opening={openingDraft}
         camera={camera}
+        palette={palette}
       />
 
       {/* Hover cell */}
       <HoverCellLayer
         hoverCell={hoverCell}
         camera={camera}
+        palette={palette}
       />
 
       {/* Confirm/cancel toolbar */}
@@ -588,6 +676,8 @@ export const Canvas: React.FC<CanvasProps> = ({
             left: selectionToolbarStyle.left,
             top: selectionToolbarStyle.top,
           }}
+          onMouseDown={e => e.stopPropagation()}
+          onClick={e => e.stopPropagation()}
         >
           <button onClick={confirmRoomSelection}>
             ✓
@@ -601,16 +691,18 @@ export const Canvas: React.FC<CanvasProps> = ({
   );
 };
 
-// Separate presentational layers for clarity
+// layers -------------------------------------------------------------
 
 const GridLayer: React.FC<{
   camera: CameraState;
-}> = ({ camera }) => {
+  palette: CanvasPalette;
+}> = ({ camera, palette }) => {
+  const gridColor = palette.gridLine;
   const style: React.CSSProperties = {
     position: "absolute",
     inset: 0,
-    backgroundImage: `linear-gradient( to right, rgba(0,0,0,0.1) 1px, transparent 1px ),
-                      linear-gradient( to bottom, rgba(0,0,0,0.1) 1px, transparent 1px )`,
+    backgroundImage: `linear-gradient(to right, ${gridColor} 1px, transparent 1px),
+                      linear-gradient(to bottom, ${gridColor} 1px, transparent 1px)`,
     backgroundSize: `${
       GRID_SIZE * camera.zoom
     }px ${GRID_SIZE * camera.zoom}px`,
@@ -623,48 +715,96 @@ const GridLayer: React.FC<{
 const GeometryLayer: React.FC<{
   geometry: FloorGeometry;
   camera: CameraState;
+  palette: CanvasPalette;
   dimmed?: boolean;
-}> = ({ geometry, camera, dimmed }) => {
-  const baseColor = dimmed
-    ? "rgba(0,0,0,0.15)"
-    : "rgba(0,0,0,0.6)";
-  const roomColor = dimmed
-    ? "rgba(0,0,150,0.08)"
-    : "rgba(0,0,150,0.2)";
+}> = ({ geometry, camera, palette, dimmed }) => {
+  const baseWallColor = dimmed
+    ? palette.wallDimmed
+    : palette.wall;
+  const baseRoomFill = dimmed
+    ? palette.roomFillDimmed
+    : palette.roomFill;
 
   return (
     <div className="geometry-layer">
       {/* Rooms */}
       {geometry.rooms.map(room => {
-        // If the room has an explicit cell mask, render each cell;
-        // otherwise fall back to the rectangular bounds.
+        const fillColor = room.color ?? baseRoomFill;
+
         if (room.cellKeys && room.cellKeys.length > 0) {
-          return room.cellKeys.map(key => {
-            const { x, y } = parseCellKey(key);
-            const rect = gridToScreenRect(
-              x,
-              y,
-              x + 1,
-              y + 1,
-              camera,
-              GRID_SIZE
-            );
-            return (
-              <div
-                key={`${room.id}-${key}`}
-                style={{
-                  position: "absolute",
-                  left: rect.left,
-                  top: rect.top,
-                  width: rect.width,
-                  height: rect.height,
-                  backgroundColor: roomColor,
-                  border: `1px solid ${baseColor}`,
-                  boxSizing: "border-box",
-                }}
-              />
-            );
-          });
+          return (
+            <React.Fragment key={room.id}>
+              {room.cellKeys.map(key => {
+                const { x, y } = parseCellKey(key);
+                const rect = gridToScreenRect(
+                  x,
+                  y,
+                  x + 1,
+                  y + 1,
+                  camera,
+                  GRID_SIZE
+                );
+                return (
+                  <div
+                    key={`${room.id}-${key}`}
+                    style={{
+                      position: "absolute",
+                      left: rect.left,
+                      top: rect.top,
+                      width: rect.width,
+                      height: rect.height,
+                      backgroundColor: fillColor,
+                      boxSizing: "border-box",
+                      pointerEvents: "none",
+                    }}
+                  />
+                );
+              })}
+
+              {room.name && (() => {
+                const xs: number[] = [];
+                const ys: number[] = [];
+                room.cellKeys!.forEach(key => {
+                  const { x, y } = parseCellKey(key);
+                  xs.push(x);
+                  ys.push(y);
+                });
+                const minX = Math.min(...xs);
+                const minY = Math.min(...ys);
+                const maxX = Math.max(...xs);
+                const maxY = Math.max(...ys);
+                const rect = gridToScreenRect(
+                  minX,
+                  minY,
+                  maxX + 1,
+                  maxY + 1,
+                  camera,
+                  GRID_SIZE
+                );
+                return (
+                  <div
+                    key={`${room.id}-label`}
+                    style={{
+                      position: "absolute",
+                      left: rect.left,
+                      top: rect.top,
+                      width: rect.width,
+                      height: rect.height,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      pointerEvents: "none",
+                      fontSize: 11,
+                      opacity: 0.9,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {room.name}
+                  </div>
+                );
+              })()}
+            </React.Fragment>
+          );
         }
 
         const rect = gridToScreenRect(
@@ -684,11 +824,29 @@ const GeometryLayer: React.FC<{
               top: rect.top,
               width: rect.width,
               height: rect.height,
-              backgroundColor: roomColor,
-              border: `1px solid ${baseColor}`,
+              backgroundColor: fillColor,
+              border: `1px solid ${baseWallColor}`,
               boxSizing: "border-box",
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "flex-start",
+              pointerEvents: "none",
             }}
-          />
+          >
+            {room.name && (
+              <div
+                style={{
+                  pointerEvents: "none",
+                  fontSize: 11,
+                  padding: 2,
+                  opacity: 0.9,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {room.name}
+              </div>
+            )}
+          </div>
         );
       })}
 
@@ -704,7 +862,7 @@ const GeometryLayer: React.FC<{
               top: rect.top,
               width: rect.width,
               height: rect.height,
-              backgroundColor: baseColor,
+              backgroundColor: baseWallColor,
             }}
           />
         );
@@ -731,7 +889,7 @@ const GeometryLayer: React.FC<{
               top: rect.top,
               width: rect.width,
               height: rect.height,
-              backgroundColor: "rgba(0,200,0,0.7)",
+              backgroundColor: palette.door,
             }}
           />
         );
@@ -758,7 +916,7 @@ const GeometryLayer: React.FC<{
               top: rect.top,
               width: rect.width,
               height: rect.height,
-              backgroundColor: "rgba(0,150,200,0.7)",
+              backgroundColor: palette.window,
             }}
           />
         );
@@ -815,15 +973,16 @@ const DraftSelectionLayer: React.FC<{
   dragStartCell: GridPoint | null;
   dragCurrentCell: GridPoint | null;
   camera: CameraState;
+  palette: CanvasPalette;
 }> = ({
   selectedCells,
   dragStartCell,
   dragCurrentCell,
   camera,
+  palette,
 }) => {
   const items: React.ReactNode[] = [];
 
-  // Solid selected cells
   selectedCells.forEach(key => {
     const [x, y] = key.split(",").map(v => parseInt(v, 10));
     const rect = gridToScreenRect(
@@ -843,13 +1002,12 @@ const DraftSelectionLayer: React.FC<{
           top: rect.top,
           width: rect.width,
           height: rect.height,
-          backgroundColor: "rgba(50,150,255,0.25)",
+          backgroundColor: palette.selectionSolid,
         }}
       />
     );
   });
 
-  // Drag preview
   if (dragStartCell && dragCurrentCell) {
     const rectCells = rectCellsBetween(
       dragStartCell,
@@ -876,7 +1034,7 @@ const DraftSelectionLayer: React.FC<{
             top: rect.top,
             width: rect.width,
             height: rect.height,
-            backgroundColor: "rgba(50,150,255,0.15)",
+            backgroundColor: palette.selectionPreview,
           }}
         />
       );
@@ -890,7 +1048,8 @@ const DraftWallLayer: React.FC<{
   start: GridPoint | null;
   current: GridPoint | null;
   camera: CameraState;
-}> = ({ start, current, camera }) => {
+  palette: CanvasPalette;
+}> = ({ start, current, camera, palette }) => {
   if (!start || !current) return null;
   const draft = (() => {
     let x1 = start.x;
@@ -922,7 +1081,7 @@ const DraftWallLayer: React.FC<{
         top: rect.top,
         width: rect.width,
         height: rect.height,
-        backgroundColor: "rgba(0,0,0,0.3)",
+        backgroundColor: palette.draftWall,
       }}
     />
   );
@@ -931,7 +1090,8 @@ const DraftWallLayer: React.FC<{
 const DraftOpeningLayer: React.FC<{
   opening: OpeningDraft | null;
   camera: CameraState;
-}> = ({ opening, camera }) => {
+  palette: CanvasPalette;
+}> = ({ opening, camera, palette }) => {
   if (!opening) return null;
   const range = openingSegmentRange(
     opening.wall,
@@ -953,7 +1113,7 @@ const DraftOpeningLayer: React.FC<{
         top: rect.top,
         width: rect.width,
         height: rect.height,
-        backgroundColor: "rgba(0,255,0,0.4)",
+        backgroundColor: palette.draftOpening,
       }}
     />
   );
@@ -962,7 +1122,8 @@ const DraftOpeningLayer: React.FC<{
 const HoverCellLayer: React.FC<{
   hoverCell: GridPoint | null;
   camera: CameraState;
-}> = ({ hoverCell, camera }) => {
+  palette: CanvasPalette;
+}> = ({ hoverCell, camera, palette }) => {
   if (!hoverCell) return null;
   const rect = gridToScreenRect(
     hoverCell.x,
@@ -980,7 +1141,7 @@ const HoverCellLayer: React.FC<{
         top: rect.top,
         width: rect.width,
         height: rect.height,
-        border: "1px dashed rgba(0,0,0,0.3)",
+        border: `1px dashed ${palette.hoverBorder}`,
         pointerEvents: "none",
       }}
     />

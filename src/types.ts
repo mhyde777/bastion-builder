@@ -16,6 +16,23 @@ export interface CameraState {
   zoom: number;
 }
 
+// Room metadata types
+
+export type RoomCategory = "cramped" | "roomy" | "vast";
+
+// Reserved for future facility metadata
+export type FacilityType =
+  | "barracks"
+  | "armory"
+  | "storage"
+  | "hall"
+  | "other";
+
+export interface RoomSizeInfo {
+  cellCount: number;
+  category: RoomCategory;
+}
+
 export interface Room {
   id: string;
   x: number;
@@ -24,6 +41,22 @@ export interface Room {
   height: number;
   // exact drafted shape; keys like "x,y"
   cellKeys?: string[];
+
+  // New metadata
+  name?: string;
+  /**
+   * CSS color / hex string. If omitted, UI should fall back
+   * to a default based on category.
+   */
+  color?: string;
+  /**
+   * “Cramped / roomy / vast” classification based on cell count.
+   */
+  category?: RoomCategory;
+  /**
+   * Reserved for future facility-type assignment.
+   */
+  facilityType?: FacilityType | null;
 }
 
 export interface Wall {

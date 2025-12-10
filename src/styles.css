@@ -5,12 +5,81 @@ body,
   padding: 0;
   width: 100%;
   height: 100%;
-  font-family: system-ui, sans-serif;
 }
+
+/* --------------------------------------------------
+   Theme variables + base body styling
+   -------------------------------------------------- */
+
+body {
+  font-family: system-ui, sans-serif;
+
+  /* Light defaults */
+  --bg: #f4f4f8;
+  --panel-bg: #ffffff;
+  --text: #111111;
+  --accent: #2f6bff;
+  --muted: #666666;
+
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+/* Dark theme overrides */
+body.theme-dark {
+  --bg: #101010;
+  --panel-bg: #1f1f1f;
+  --text: #f0f0f0;
+  --accent: #6aa0ff;
+  --muted: #999999;
+}
+
+/* Blueprint theme overrides */
+body.theme-blueprint {
+  --bg: #00152e;
+  --panel-bg: #022143;
+  --text: #f5f7ff;
+  --accent: #5fc4ff;
+  --muted: #9bb3d6;
+}
+
+/* Explicit theme backgrounds so there is no ambiguity
+   in cascade order. These override any generic styles. */
+
+body.theme-light,
+body.theme-light .app-root,
+body.theme-light .home-root,
+body.theme-light .canvas-root {
+  background-color: #f4f4f8;
+  color: #111111;
+}
+
+body.theme-dark,
+body.theme-dark .app-root,
+body.theme-dark .home-root,
+body.theme-dark .canvas-root {
+  background-color: #101010;
+  color: #f0f0f0;
+}
+
+body.theme-blueprint,
+body.theme-blueprint .app-root,
+body.theme-blueprint .home-root,
+body.theme-blueprint .canvas-root {
+  background-color: #00152e;
+  color: #f5f7ff;
+}
+
+/* --------------------------------------------------
+   Layout
+   -------------------------------------------------- */
 
 .app-root {
   display: flex;
-  height: 100%;
+  height: 100vh; /* full viewport */
+  width: 100%;
+  background-color: var(--bg);
+  color: var(--text);
 }
 
 .sidebar {
@@ -21,6 +90,7 @@ body,
   display: flex;
   flex-direction: column;
   gap: 12px;
+  background-color: var(--panel-bg);
 }
 
 .main-area {
@@ -29,12 +99,25 @@ body,
   overflow: hidden;
 }
 
+/* Canvas area: fill the main area and use themed background */
 .canvas-root {
   position: relative;
   width: 100%;
   height: 100%;
   cursor: crosshair;
+  background-color: var(--bg);
 }
+
+/* Home screen layout (if you have one) */
+.home-root {
+  min-height: 100vh;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+/* --------------------------------------------------
+   Typography / headers
+   -------------------------------------------------- */
 
 .project-title {
   font-size: 18px;
@@ -46,10 +129,15 @@ body,
   padding-bottom: 8px;
 }
 
+/* --------------------------------------------------
+   Controls
+   -------------------------------------------------- */
+
 .level-picker select {
   width: 100%;
 }
 
+/* Tools */
 .tool-palette {
   display: flex;
   flex-direction: column;
@@ -77,8 +165,97 @@ body,
   margin-top: 8px;
 }
 
+/* Floating toolbar for room confirmation */
 .selection-toolbar button {
   display: block;
   margin-bottom: 4px;
+}
+
+/* Room metadata panel (optional styling) */
+.room-metadata-panel {
+  border-top: 1px solid #ddd;
+  padding-top: 8px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.room-metadata-panel h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.field {
+  margin-bottom: 8px;
+}
+
+.field-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+  color: var(--muted);
+}
+
+.text-input,
+.select-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  font-size: 13px;
+}
+
+.color-input {
+  width: 100%;
+  height: 24px;
+  padding: 0;
+  border: none;
+  box-sizing: border-box;
+}
+
+.room-size-info {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.room-size-info .warning {
+  margin-top: 4px;
+  color: #b00020;
+}
+
+/* Muted text helper */
+.muted {
+  color: var(--muted);
+}
+
+/* Buttons / clickable things */
+.back-button,
+.project-open-button,
+.project-delete-button,
+button {
+  cursor: pointer;
+}
+
+/* Small layout helpers */
+.home-header,
+.sidebar-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.theme-selector select {
+  max-width: 150px;
+}
+
+/* Save status */
+.save-error {
+  color: #b00020;
+  font-size: 12px;
+}
+
+.save-status {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
