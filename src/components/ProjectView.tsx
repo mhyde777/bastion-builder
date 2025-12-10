@@ -295,49 +295,6 @@ export const ProjectView: React.FC = () => {
     }
   }
 
-  function addLevel() {
-    if (!project) return;
-
-    const maxElevation =
-      project.levels.length > 0
-        ? Math.max(...project.levels.map(l => l.elevation))
-        : 0;
-
-    const index = project.levels.length + 1;
-    const newLevel: Level = {
-      id: `level-${Date.now()}`,
-      name: `Floor ${index}`,
-      elevation: maxElevation + 10,
-      geometry: createEmptyGeometry(),
-    };
-
-    const levels = [...project.levels, newLevel];
-    const next = normalizeProject({ ...project, levels });
-
-    setProject(next);
-    setCurrentLevelId(newLevel.id);
-    setSelectedRoomId(null);
-    void saveProject(next);
-  }
-
-  function deleteLevel(levelId: string) {
-    if (!project) return;
-    if (project.levels.length <= 1) return; // never delete the last level
-
-    const levels = project.levels.filter(l => l.id !== levelId);
-    const next = normalizeProject({ ...project, levels });
-
-    setProject(next);
-    setSelectedRoomId(null);
-    setCurrentLevelId(prevId => {
-      if (!prevId || prevId === levelId) {
-        return levels[0]?.id ?? null;
-      }
-      return prevId;
-    });
-    void saveProject(next);
-  }
-
   function insertLevelRelative(
     anchorLevelId: string,
     direction: "above" | "below"
@@ -375,7 +332,6 @@ export const ProjectView: React.FC = () => {
       }
     }
 
-    const index = project.levels.length + 1;
     const newLevel: Level = {
       id: `level-${Date.now()}`,
       name:
