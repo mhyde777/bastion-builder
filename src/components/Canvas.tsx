@@ -42,7 +42,6 @@ import {
   removeSingleWallAndOpenings,
   removeWallsAndOpenings,
 } from "../utils/erase";
-import { normalizeWall } from "../utils/walls";
 import { useTheme } from "../theme";
 
 interface CanvasProps {
@@ -955,49 +954,6 @@ function wallToScreenSegment(
     height: thickness,
     angleDeg,
   };
-}
-
-function wallRectToScreen(
-  wall: Wall,
-  camera: CameraState
-): {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-} {
-  const thickness = (GRID_SIZE * camera.zoom) / 6;
-  if (wall.y1 === wall.y2) {
-    const base = gridToScreenRect(
-      wall.x1,
-      wall.y1,
-      wall.x2,
-      wall.y2,
-      camera,
-      GRID_SIZE
-    );
-    return {
-      left: base.left,
-      top: base.top - thickness / 2,
-      width: base.width,
-      height: thickness,
-    };
-  } else {
-    const base = gridToScreenRect(
-      wall.x1,
-      wall.y1,
-      wall.x2,
-      wall.y2,
-      camera,
-      GRID_SIZE
-    );
-    return {
-      left: base.left - thickness / 2,
-      top: base.top,
-      width: thickness,
-      height: base.height,
-    };
-  }
 }
 
 const DraftSelectionLayer: React.FC<{

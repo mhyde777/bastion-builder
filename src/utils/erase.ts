@@ -1,11 +1,5 @@
 // src/utils/erase.ts
-import type {
-  Door,
-  FloorGeometry,
-  Room,
-  Wall,
-  WindowOpening,
-} from "../types";
+import type { FloorGeometry, Room, Wall } from "../types";
 
 export function findRoomAtGrid(
   x: number,

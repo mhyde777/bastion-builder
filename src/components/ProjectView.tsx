@@ -30,22 +30,25 @@ function createEmptyGeometry(): FloorGeometry {
   return { rooms: [], walls: [], doors: [], windows: [] };
 }
 
-function createFallbackProject(id: string): Project {
+function createFallbackProject(id: string | undefined): Project {
+  const safeId = id ?? "local-project";
+
   const level1: Level = {
     id: "level-1",
-    name: "Floor 1",
+    name: "Ground Floor",
     elevation: 0,
     geometry: createEmptyGeometry(),
   };
+
   const level0: Level = {
     id: "level-0",
     name: "Basement",
-    elevation: -1,
+    elevation: -10,
     geometry: createEmptyGeometry(),
   };
 
   return {
-    id,
+    id: safeId,
     name: "Untitled",
     levels: [level0, level1],
     version: 1,
@@ -335,8 +338,12 @@ export const ProjectView: React.FC = () => {
     setTheme(e.target.value as Theme);
   }
 
-  if (loading || !project || !currentLevel) {
+  if (loading || !project) {
     return <div className="app-root">Loading…</div>;
+  }
+
+  if (!currentLevel) {
+    return <div className="app-root">No levels found.</div>;
   }
 
   const selectedRoom: Room | null =
@@ -348,8 +355,8 @@ export const ProjectView: React.FC = () => {
     const geom = currentLevel.geometry;
     const nextRooms = geom.rooms.map(r =>
       r.id === updatedRoom.id
-        ? ensureRoomMetadata(updatedRoom)
-        : r
+	? ensureRoomMetadata(updatedRoom)
+	: r
     );
 
     const newGeometry: FloorGeometry = {

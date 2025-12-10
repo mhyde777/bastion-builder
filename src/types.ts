@@ -2,15 +2,16 @@
 
 export type ID = string;
 
-export enum Tool {
-  Room = "room",
-  Wall = "wall",
-  Door = "door",
-  Window = "window",
-  Erase = "erase",
-  Pan = "pan",
-}
+export const Tool = {
+  Room: "room",
+  Wall: "wall",
+  Door: "door",
+  Window: "window",
+  Erase: "erase",
+  Pan: "pan",
+} as const;
 
+export type Tool = (typeof Tool)[keyof typeof Tool];
 export interface CameraState {
   offset: { x: number; y: number };
   zoom: number;
@@ -34,8 +35,6 @@ export interface RoomSizeInfo {
   cellCount: number;
   category: RoomCategory;
 }
-
-export type RoomShape = "grid" | "circle";
 
 export interface Room {
   id: string;

@@ -31,7 +31,11 @@ export const RoomMetadataPanel: React.FC<RoomMetadataPanelProps> = ({
   const suggestedCategory = inferRoomCategory(cellCount);
 
   function update(partial: Partial<Room>) {
-    const merged: Room = { ...room, ...partial };
+    const merged: Room = {
+      ...room,
+      ...partial,
+      id: room.id,
+    };
     onChange(ensureRoomMetadata(merged));
   }
 
