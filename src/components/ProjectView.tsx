@@ -295,6 +295,34 @@ export const ProjectView: React.FC = () => {
     }
   }
 
+  function renumberLevels(levels: Level[]): Level[] {
+    // Sort by elevation first
+    const sorted = [...levels].sort((a, b) => a.elevation - b.elevation);
+
+    // Find index of ground floor (elevation closest to 0)
+    let groundIndex = 0;
+    let groundDiff = Math.abs(sorted[0].elevation);
+    for (let i = 1; i < sorted.length; i++) {
+      const diff = Math.abs(sorted[i].elevation);
+      if (diff < groundDiff) {
+        groundDiff = diff;
+        groundIndex = i;
+      }
+    }
+
+    // Rename basements
+    for (let i = groundIndex - 1, count = 1; i >= 0; i--, count++) {
+      sorted[i].name = `Basement ${count}`;
+    }
+
+    // Rename floors
+    for (let i = groundIndex, count = 1; i < sorted.length; i++, count++) {
+      sorted[i].name = `Floor ${count}`;
+    }
+
+    return sorted;
+  }
+
   function insertLevelRelative(
     anchorLevelId: string,
     direction: "above" | "below"
@@ -334,16 +362,14 @@ export const ProjectView: React.FC = () => {
 
     const newLevel: Level = {
       id: `level-${Date.now()}`,
-      name:
-        direction === "above"
-          ? `Above ${anchor.name}`
-          : `Below ${anchor.name}`,
+      name: "", // temporary, renumberLevels() will fix this
       elevation,
       geometry: createEmptyGeometry(),
     };
 
     const levels = [...project.levels, newLevel];
-    const nextProject = normalizeProject({ ...project, levels });
+    const renamed = renumberLevels(levels);
+    const nextProject = normalizeProject({ ...project, levels: renamed });
 
     setProject(nextProject);
     setSelectedRoomId(null);
@@ -364,7 +390,8 @@ export const ProjectView: React.FC = () => {
     if (project.levels.length <= 1) return;
 
     const levels = project.levels.filter(l => l.id !== levelId);
-    const nextProject = normalizeProject({ ...project, levels });
+    const renamed = renumberLevels(levels);
+    const nextProject = normalizeProject({ ...project, levels: renamed });
 
     setProject(nextProject);
     setSelectedRoomId(null);
