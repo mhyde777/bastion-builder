@@ -150,7 +150,6 @@ export const HomeScreen: React.FC = () => {
                 >
                   {p.name}{" "}
                   <span className="muted">
-                    (v{p.version})
                   </span>
                 </button>
                 <button

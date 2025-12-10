@@ -452,7 +452,6 @@ export const ProjectView: React.FC = () => {
           className="save-status"
           style={{ color: mutedColor }}
         >
-          Version: {project.version}
         </div>
       </aside>
 

@@ -394,19 +394,15 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
 
     if (currentTool === Tool.Wall && wallStartCell) {
-      const wall = finalizeWallDraft(
-        wallStartCell,
-        cell
-      );
+      const wall = finalizeWallDraft(wallStartCell, cell);
       setWallStartCell(null);
       setWallCurrentCell(null);
       if (wall) {
-        const normalized = normalizeWall(wall);
         const newGeom: FloorGeometry = {
           ...geometry,
           walls: [
             ...geometry.walls,
-            { ...normalized, id: makeId("wall") },
+            { ...wall, id: makeId("wall") },
           ],
         };
         onCommitGeometry(newGeom);
@@ -461,34 +457,28 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
   }
 
-  function finalizeWallDraft(
-    start: GridPoint,
-    end: GridPoint
-  ): Wall | null {
-    let x1 = start.x;
-    let y1 = start.y;
-    let x2 = end.x;
-    let y2 = end.y;
+function finalizeWallDraft(
+  start: GridPoint,
+  end: GridPoint
+): Wall | null {
+  const x1 = start.x;
+  const y1 = start.y;
+  const x2 = end.x;
+  const y2 = end.y;
 
-    const dx = Math.abs(x2 - x1);
-    const dy = Math.abs(y2 - y1);
-
-    if (dx === 0 && dy === 0) return null;
-
-    if (dx >= dy) {
-      y2 = y1;
-    } else {
-      x2 = x1;
-    }
-
-    return {
-      id: "",
-      x1,
-      y1,
-      x2,
-      y2,
-    };
+  // Ignore zero-length walls
+  if (x1 === x2 && y1 === y2) {
+    return null;
   }
+
+  return {
+    id: "",
+    x1,
+    y1,
+    x2,
+    y2,
+  };
+}
 
   function handleEraseAtPoint(
     clientX: number,
@@ -543,35 +533,35 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
   }
 
-  function confirmRoomSelection() {
-    if (selectedCells.size === 0) return;
-    const room = createRoomFromCellKeys(
-      selectedCells,
-      makeId("room")
-    );
-    if (!room) {
-      setSelectedCells(new Set());
-      return;
-    }
-
-    if (hasRoomOverlap(geometry.rooms, room)) {
-      setSelectedCells(new Set());
-      return;
-    }
-
-    const walls = perimeterWallsFromCellKeys(
-      selectedCells,
-      () => makeId("wall")
-    );
-    const newGeom: FloorGeometry = {
-      ...geometry,
-      rooms: [...geometry.rooms, room],
-      walls: [...geometry.walls, ...walls],
-    };
-    onCommitGeometry(newGeom);
-    onSelectRoom?.(room.id);
+function confirmRoomSelection() {
+  if (selectedCells.size === 0) return;
+  const room = createRoomFromCellKeys(
+    selectedCells,
+    makeId("room")
+  );
+  if (!room) {
     setSelectedCells(new Set());
+    return;
   }
+
+  if (hasRoomOverlap(geometry.rooms, room)) {
+    setSelectedCells(new Set());
+    return;
+  }
+
+  const walls = perimeterWallsFromCellKeys(
+    selectedCells,
+    () => makeId("wall")
+  );
+  const newGeom: FloorGeometry = {
+    ...geometry,
+    rooms: [...geometry.rooms, room],
+    walls: [...geometry.walls, ...walls],
+  };
+  onCommitGeometry(newGeom);
+  onSelectRoom?.(room.id);
+  setSelectedCells(new Set());
+}
 
   function cancelRoomSelection() {
     setSelectedCells(new Set());
@@ -852,17 +842,19 @@ const GeometryLayer: React.FC<{
 
       {/* Walls */}
       {geometry.walls.map(wall => {
-        const rect = wallRectToScreen(wall, camera);
+        const seg = wallToScreenSegment(wall, camera);
         return (
           <div
             key={wall.id}
             style={{
               position: "absolute",
-              left: rect.left,
-              top: rect.top,
-              width: rect.width,
-              height: rect.height,
+              left: seg.left,
+              top: seg.top,
+              width: seg.width,
+              height: seg.height,
               backgroundColor: baseWallColor,
+              transformOrigin: "0 50%",
+              transform: `rotate(${seg.angleDeg}deg)`,
             }}
           />
         );
@@ -890,6 +882,8 @@ const GeometryLayer: React.FC<{
               width: rect.width,
               height: rect.height,
               backgroundColor: palette.door,
+              transformOrigin: "0 50%",
+              transform: `rotate(${rect.angleDeg}deg)`,
             }}
           />
         );
@@ -917,6 +911,8 @@ const GeometryLayer: React.FC<{
               width: rect.width,
               height: rect.height,
               backgroundColor: palette.window,
+              transformOrigin: "0 50%",
+              transform: `rotate(${rect.angleDeg}deg)`,
             }}
           />
         );
@@ -924,6 +920,42 @@ const GeometryLayer: React.FC<{
     </div>
   );
 };
+
+function wallToScreenSegment(
+  wall: Wall,
+  camera: CameraState
+): {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  angleDeg: number;
+} {
+  const thickness = (GRID_SIZE * camera.zoom) / 6;
+
+  const x1Screen =
+    camera.offset.x + wall.x1 * GRID_SIZE * camera.zoom;
+  const y1Screen =
+    camera.offset.y + wall.y1 * GRID_SIZE * camera.zoom;
+  const x2Screen =
+    camera.offset.x + wall.x2 * GRID_SIZE * camera.zoom;
+  const y2Screen =
+    camera.offset.y + wall.y2 * GRID_SIZE * camera.zoom;
+
+  const dx = x2Screen - x1Screen;
+  const dy = y2Screen - y1Screen;
+  const length = Math.sqrt(dx * dx + dy * dy);
+  const angleRad = Math.atan2(dy, dx);
+  const angleDeg = (angleRad * 180) / Math.PI;
+
+  return {
+    left: x1Screen,
+    top: y1Screen - thickness / 2,
+    width: length,
+    height: thickness,
+    angleDeg,
+  };
+}
 
 function wallRectToScreen(
   wall: Wall,
@@ -1051,37 +1083,31 @@ const DraftWallLayer: React.FC<{
   palette: CanvasPalette;
 }> = ({ start, current, camera, palette }) => {
   if (!start || !current) return null;
-  const draft = (() => {
-    let x1 = start.x;
-    let y1 = start.y;
-    let x2 = current.x;
-    let y2 = current.y;
-    const dx = Math.abs(x2 - x1);
-    const dy = Math.abs(y2 - y1);
-    if (dx === 0 && dy === 0) return null;
-    if (dx >= dy) {
-      y2 = y1;
-    } else {
-      x2 = x1;
-    }
-    return { x1, y1, x2, y2 };
-  })();
-  if (!draft) return null;
+
+  if (start.x === current.x && start.y === current.y) {
+    return null;
+  }
 
   const wall: Wall = {
     id: "",
-    ...draft,
+    x1: start.x,
+    y1: start.y,
+    x2: current.x,
+    y2: current.y,
   };
-  const rect = wallRectToScreen(wall, camera);
+
+  const seg = wallToScreenSegment(wall, camera);
   return (
     <div
       style={{
         position: "absolute",
-        left: rect.left,
-        top: rect.top,
-        width: rect.width,
-        height: rect.height,
+        left: seg.left,
+        top: seg.top,
+        width: seg.width,
+        height: seg.height,
         backgroundColor: palette.draftWall,
+        transformOrigin: "0 50%",
+        transform: `rotate(${seg.angleDeg}deg)`,
       }}
     />
   );
@@ -1114,6 +1140,8 @@ const DraftOpeningLayer: React.FC<{
         width: rect.width,
         height: rect.height,
         backgroundColor: palette.draftOpening,
+        transformOrigin: "0 50%",
+        transform: `rotate(${rect.angleDeg}deg)`,
       }}
     />
   );

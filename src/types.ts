@@ -28,10 +28,14 @@ export type FacilityType =
   | "hall"
   | "other";
 
+export type RoomShape = "grid" | "circle";
+
 export interface RoomSizeInfo {
   cellCount: number;
   category: RoomCategory;
 }
+
+export type RoomShape = "grid" | "circle";
 
 export interface Room {
   id: string;
@@ -39,23 +43,18 @@ export interface Room {
   y: number;
   width: number;
   height: number;
-  // exact drafted shape; keys like "x,y"
   cellKeys?: string[];
 
-  // New metadata
+  // New shape metadata
+  shape?: RoomShape;   // defaults to "grid" if omitted
+  centerX?: number;    // grid-space center (for circle)
+  centerY?: number;    // grid-space center
+  radius?: number;     // radius in grid cells
+
+  // Existing metadata
   name?: string;
-  /**
-   * CSS color / hex string. If omitted, UI should fall back
-   * to a default based on category.
-   */
   color?: string;
-  /**
-   * “Cramped / roomy / vast” classification based on cell count.
-   */
   category?: RoomCategory;
-  /**
-   * Reserved for future facility-type assignment.
-   */
   facilityType?: FacilityType | null;
 }
 
@@ -65,6 +64,27 @@ export interface Wall {
   y1: number;
   x2: number;
   y2: number; // horizontal or vertical only
+}
+
+export type StairType = "straight" | "spiral";
+export type StairDirection = "up" | "down";
+
+export interface Stair {
+  id: ID;
+
+  // Plan position in grid space, same as rooms/walls.
+  x: number; // origin grid cell (top-left for straight; center for spiral)
+  y: number;
+
+  // Size
+  width: number;          // in cells
+  length: number;         // in cells (for straight stairs)
+  type: StairType;
+  direction: StairDirection;  // from the owning level’s point of view
+
+  // Vertical linkage
+  linkId: ID;        // identifies the stair pair across levels
+  targetLevelId: ID; // the other level in this stair pair
 }
 
 export interface Door {
