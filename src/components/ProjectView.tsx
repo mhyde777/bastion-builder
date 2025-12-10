@@ -338,6 +338,89 @@ export const ProjectView: React.FC = () => {
     void saveProject(next);
   }
 
+  function insertLevelRelative(
+    anchorLevelId: string,
+    direction: "above" | "below"
+  ) {
+    if (!project) return;
+
+    const sorted = [...project.levels].sort(
+      (a, b) => a.elevation - b.elevation
+    );
+    const idx = sorted.findIndex(l => l.id === anchorLevelId);
+    if (idx === -1) return;
+
+    const anchor = sorted[idx];
+    const prev = sorted[idx - 1] ?? null;
+    const next = sorted[idx + 1] ?? null;
+
+    let elevation: number;
+
+    if (direction === "above") {
+      if (next) {
+        // Insert between anchor and next
+        elevation = (anchor.elevation + next.elevation) / 2;
+      } else {
+        // No level above yet; step up
+        elevation = anchor.elevation + 10;
+      }
+    } else {
+      // "below"
+      if (prev) {
+        // Insert between prev and anchor
+        elevation = (prev.elevation + anchor.elevation) / 2;
+      } else {
+        // No level below yet; step down
+        elevation = anchor.elevation - 10;
+      }
+    }
+
+    const index = project.levels.length + 1;
+    const newLevel: Level = {
+      id: `level-${Date.now()}`,
+      name:
+        direction === "above"
+          ? `Above ${anchor.name}`
+          : `Below ${anchor.name}`,
+      elevation,
+      geometry: createEmptyGeometry(),
+    };
+
+    const levels = [...project.levels, newLevel];
+    const nextProject = normalizeProject({ ...project, levels });
+
+    setProject(nextProject);
+    setSelectedRoomId(null);
+    setCurrentLevelId(newLevel.id);
+    void saveProject(nextProject);
+  }
+
+  function addLevelAbove(id: string) {
+    insertLevelRelative(id, "above");
+  }
+
+  function addLevelBelow(id: string) {
+    insertLevelRelative(id, "below");
+  }
+
+  function deleteLevel(levelId: string) {
+    if (!project) return;
+    if (project.levels.length <= 1) return;
+
+    const levels = project.levels.filter(l => l.id !== levelId);
+    const nextProject = normalizeProject({ ...project, levels });
+
+    setProject(nextProject);
+    setSelectedRoomId(null);
+    setCurrentLevelId(prevId => {
+      if (!prevId || prevId === levelId) {
+        return levels[0]?.id ?? null;
+      }
+      return prevId;
+    });
+    void saveProject(nextProject);
+}
+
   function updateProjectLevelGeometry(
     levelId: string,
     newGeometry: FloorGeometry
@@ -482,7 +565,8 @@ export const ProjectView: React.FC = () => {
           levels={project.levels}
           currentLevelId={currentLevel.id}
           onChangeLevel={handleChangeLevel}
-          onAddLevel={addLevel}
+          onAddLevelAbove={addLevelAbove}
+          onAddLevelBelow={addLevelBelow}
           onDeleteLevel={deleteLevel}
         />
 

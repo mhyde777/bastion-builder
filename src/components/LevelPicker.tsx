@@ -6,7 +6,8 @@ interface Props {
   levels: Level[];
   currentLevelId: string | null;
   onChangeLevel: (id: string) => void;
-  onAddLevel: () => void;
+  onAddLevelAbove: (id: string) => void;
+  onAddLevelBelow: (id: string) => void;
   onDeleteLevel: (id: string) => void;
 }
 
@@ -14,12 +15,17 @@ export const LevelPicker: React.FC<Props> = ({
   levels,
   currentLevelId,
   onChangeLevel,
-  onAddLevel,
+  onAddLevelAbove,
+  onAddLevelBelow,
   onDeleteLevel,
 }) => {
   const sortedLevels = [...levels].sort(
     (a, b) => a.elevation - b.elevation
   );
+
+  const current = currentLevelId
+    ? sortedLevels.find(l => l.id === currentLevelId) ?? null
+    : null;
 
   return (
     <div className="level-picker">
@@ -38,15 +44,24 @@ export const LevelPicker: React.FC<Props> = ({
       </label>
 
       <div className="level-picker-buttons">
-        <button type="button" onClick={onAddLevel}>
-          + Level
+        <button
+          type="button"
+          disabled={!current}
+          onClick={() => current && onAddLevelBelow(current.id)}
+        >
+          + Below
         </button>
         <button
           type="button"
-          onClick={() =>
-            currentLevelId && onDeleteLevel(currentLevelId)
-          }
-          disabled={!currentLevelId || levels.length <= 1}
+          disabled={!current}
+          onClick={() => current && onAddLevelAbove(current.id)}
+        >
+          + Above
+        </button>
+        <button
+          type="button"
+          disabled={!current || levels.length <= 1}
+          onClick={() => current && onDeleteLevel(current.id)}
         >
           Delete
         </button>
