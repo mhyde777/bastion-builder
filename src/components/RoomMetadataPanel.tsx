@@ -10,15 +10,12 @@ type RoomMetadataPanelProps = {
   onChange(updated: Room): void;
 };
 
-type RoomMetadataCategory = { [key: string]: any };
-
-const CATEGORIES: RoomMetadataCategory[] = [
-  { id: "summary", label: "Summary" },
-  { id: "function", label: "Function" },
-  { id: "notes", label: "Notes" },
-];
+// Simple list of category options to show in the dropdown.
+// We treat them as plain strings for the UI and cast to RoomCategory on change.
+const CATEGORIES: string[] = ["summary", "function", "notes"];
 
 export function RoomMetadataPanel({ room, onChange }: RoomMetadataPanelProps) {
+  // No room selected state
   if (!room) {
     return (
       <div className="room-metadata-panel empty">
@@ -26,21 +23,26 @@ export function RoomMetadataPanel({ room, onChange }: RoomMetadataPanelProps) {
       </div>
     );
   }
+
+  // From here on, room is non-null
+  const safeRoom: Room = room;
+
   const cellCount =
-    room.cellKeys?.length ?? room.width * room.height;
+    safeRoom.cellKeys?.length ?? safeRoom.width * safeRoom.height;
   const suggestedCategory = inferRoomCategory(cellCount);
 
   function update(
     partial: Partial<Omit<Room, "id" | "x" | "y" | "width" | "height">>
   ) {
     const merged: Room = {
-      ...room,
+      ...safeRoom,
       ...partial,
-      id: room.id,
-      x: room.x,
-      y: room.y,
-      width: room.width,
-      height: room.height,
+      // Ensure required fields are never overwritten by undefined
+      id: safeRoom.id,
+      x: safeRoom.x,
+      y: safeRoom.y,
+      width: safeRoom.width,
+      height: safeRoom.height,
     };
 
     onChange(ensureRoomMetadata(merged));
@@ -55,8 +57,8 @@ export function RoomMetadataPanel({ room, onChange }: RoomMetadataPanelProps) {
         <input
           type="text"
           className="text-input"
-          value={room.name ?? ""}
-          onChange={e => update({ name: e.target.value })}
+          value={safeRoom.name ?? ""}
+          onChange={(e) => update({ name: e.target.value })}
         />
       </div>
 
@@ -65,8 +67,8 @@ export function RoomMetadataPanel({ room, onChange }: RoomMetadataPanelProps) {
         <input
           type="color"
           className="color-input"
-          value={room.color ?? "#c2e7ff"}
-          onChange={e => update({ color: e.target.value })}
+          value={safeRoom.color ?? "#c2e7ff"}
+          onChange={(e) => update({ color: e.target.value })}
         />
       </div>
 
@@ -74,12 +76,12 @@ export function RoomMetadataPanel({ room, onChange }: RoomMetadataPanelProps) {
         <div className="field-label">Category</div>
         <select
           className="select-input"
-          value={room.category ?? suggestedCategory}
-          onChange={e =>
+          value={safeRoom.category ?? suggestedCategory ?? ""}
+          onChange={(e) =>
             update({ category: e.target.value as RoomCategory })
           }
         >
-          {CATEGORIES.map(cat => (
+          {CATEGORIES.map((cat) => (
             <option key={cat} value={cat}>
               {cat.charAt(0).toUpperCase() + cat.slice(1)}
             </option>
@@ -90,14 +92,16 @@ export function RoomMetadataPanel({ room, onChange }: RoomMetadataPanelProps) {
       <div className="room-size-info">
         <div>Cells: {cellCount}</div>
         <div>Suggested: {suggestedCategory}</div>
-        {room.category && room.category !== suggestedCategory && (
-          <div className="warning">
-            Size suggests <strong>{suggestedCategory}</strong>, but
-            category is set to <strong>{room.category}</strong>.
-          </div>
-        )}
+        {safeRoom.category &&
+          suggestedCategory &&
+          safeRoom.category !== suggestedCategory && (
+            <div className="warning">
+              Size suggests <strong>{suggestedCategory}</strong>, but
+              category is set to <strong>{safeRoom.category}</strong>.
+            </div>
+          )}
       </div>
     </div>
   );
-};
+}
 
