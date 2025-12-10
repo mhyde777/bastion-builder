@@ -1,10 +1,22 @@
 // src/components/RoomMetadataPanel.tsx
-import React from "react";
 import type { Room, RoomCategory } from "../types";
 import {
   inferRoomCategory,
   ensureRoomMetadata,
 } from "../utils/roomMetadata";
+
+type RoomMetadataPanelProps = {
+  room: Room | null;
+  onChange(updated: Room): void;
+};
+
+type RoomMetadataCategory = { [key: string]: any };
+
+const CATEGORIES: RoomMetadataCategory[] = [
+  { id: "summary", label: "Summary" },
+  { id: "function", label: "Function" },
+  { id: "notes", label: "Notes" },
+];
 
 export function RoomMetadataPanel({ room, onChange }: RoomMetadataPanelProps) {
   if (!room) {
