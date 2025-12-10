@@ -6,36 +6,31 @@ import {
   ensureRoomMetadata,
 } from "../utils/roomMetadata";
 
-interface RoomMetadataPanelProps {
-  room: Room | null;
-  onChange: (updated: Room) => void;
-}
-
-const CATEGORIES: RoomCategory[] = ["cramped", "roomy", "vast"];
-
-export const RoomMetadataPanel: React.FC<RoomMetadataPanelProps> = ({
-  room,
-  onChange,
-}) => {
+export function RoomMetadataPanel({ room, onChange }: RoomMetadataPanelProps) {
   if (!room) {
     return (
-      <div className="room-metadata-panel">
-        <h3>Room</h3>
-        <p>Select a room to edit its details.</p>
+      <div className="room-metadata-panel empty">
+        No room selected.
       </div>
     );
   }
-
   const cellCount =
     room.cellKeys?.length ?? room.width * room.height;
   const suggestedCategory = inferRoomCategory(cellCount);
 
-  function update(partial: Partial<Room>) {
+  function update(
+    partial: Partial<Omit<Room, "id" | "x" | "y" | "width" | "height">>
+  ) {
     const merged: Room = {
       ...room,
       ...partial,
       id: room.id,
+      x: room.x,
+      y: room.y,
+      width: room.width,
+      height: room.height,
     };
+
     onChange(ensureRoomMetadata(merged));
   }
 

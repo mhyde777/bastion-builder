@@ -352,11 +352,15 @@ export const ProjectView: React.FC = () => {
     ) ?? null;
 
   function handleRoomMetadataChange(updatedRoom: Room) {
+    if (!currentLevel) {
+      // Nothing to update if there is no active level
+      return;
+    }
+
     const geom = currentLevel.geometry;
-    const nextRooms = geom.rooms.map(r =>
-      r.id === updatedRoom.id
-	? ensureRoomMetadata(updatedRoom)
-	: r
+
+    const nextRooms = geom.rooms.map((r) =>
+      r.id === updatedRoom.id ? ensureRoomMetadata(updatedRoom) : r
     );
 
     const newGeometry: FloorGeometry = {

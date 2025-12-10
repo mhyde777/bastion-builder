@@ -1,6 +1,6 @@
 // src/utils/rooms.ts
 import type { FloorGeometry, Room, Wall } from "../types";
-import { parseCellKey, type GridPoint } from "./selection";
+import { parseCellKey } from "./selection";
 
 type IdFactory = () => string;
 
