@@ -14,6 +14,9 @@ const tools: { tool: Tool; label: string }[] = [
   { tool: Tool.Window, label: "Window" },
   { tool: Tool.Erase, label: "Erase" },
   { tool: Tool.Pan, label: "Pan" },
+
+  // NEW:
+  { tool: Tool.Stair, label: "Stair" },
 ];
 
 export const ToolPalette: React.FC<Props> = ({

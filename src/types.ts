@@ -9,9 +9,11 @@ export const Tool = {
   Window: "window",
   Erase: "erase",
   Pan: "pan",
+  Stair: "stair", // NEW
 } as const;
 
 export type Tool = (typeof Tool)[keyof typeof Tool];
+
 export interface CameraState {
   offset: { x: number; y: number };
   zoom: number;
@@ -105,6 +107,7 @@ export interface FloorGeometry {
   walls: Wall[];
   doors: Door[];
   windows: WindowOpening[];
+  stairs: Stair[]; // NEW
 }
 
 export interface Level {

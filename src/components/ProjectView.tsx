@@ -27,7 +27,13 @@ import { ensureRoomMetadata } from "../utils/roomMetadata";
 // helpers ------------------------------------------------------------
 
 function createEmptyGeometry(): FloorGeometry {
-  return { rooms: [], walls: [], doors: [], windows: [] };
+  return {
+    rooms: [],
+    walls: [],
+    doors: [],
+    windows: [],
+    stairs: [],
+  };
 }
 
 function createFallbackProject(id: string | undefined): Project {
@@ -61,8 +67,11 @@ function normalizeProject(project: Project): Project {
     levels: project.levels.map(level => ({
       ...level,
       geometry: {
-        ...level.geometry,
-        rooms: level.geometry.rooms.map(ensureRoomMetadata),
+        rooms: (level.geometry.rooms ?? []).map(ensureRoomMetadata),
+        walls: level.geometry.walls ?? [],
+        doors: level.geometry.doors ?? [],
+        windows: level.geometry.windows ?? [],
+        stairs: level.geometry.stairs ?? [],
       },
     })),
   };
@@ -76,9 +85,7 @@ export const ProjectView: React.FC = () => {
   const { theme, setTheme } = useTheme();
 
   const [project, setProject] = useState<Project | null>(null);
-  const [currentLevelId, setCurrentLevelId] = useState<string | null>(
-    null
-  );
+  const [currentLevelId, setCurrentLevelId] = useState<string | null>(null);
   const [camera, setCamera] = useState<CameraState>({
     offset: { x: 0, y: 0 },
     zoom: 1,
@@ -86,9 +93,7 @@ export const ProjectView: React.FC = () => {
   const [currentTool, setCurrentTool] = useState<Tool>(Tool.Room);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(
-    null
-  );
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -160,24 +165,18 @@ export const ProjectView: React.FC = () => {
         setProject(prev => {
           if (!prev || incoming.version >= prev.version) {
             setCurrentLevelId(prevId => {
-              if (
-                prevId &&
-                incoming.levels.some(l => l.id === prevId)
-              ) {
+              if (prevId && incoming.levels.some(l => l.id === prevId)) {
                 return prevId;
               }
               return incoming.levels[0]?.id ?? null;
             });
 
-            // keep selected room if it still exists on the current level
             setSelectedRoomId(prevSel => {
               if (!prevSel) return null;
-              const levelId =
-                currentLevelId ?? incoming.levels[0]?.id;
+              const levelId = currentLevelId ?? incoming.levels[0]?.id;
               const current =
-                incoming.levels.find(
-                  l => l.id === levelId
-                ) ?? incoming.levels[0];
+                incoming.levels.find(l => l.id === levelId) ??
+                incoming.levels[0];
               if (!current) return null;
               const exists = current.geometry.rooms.some(
                 r => r.id === prevSel
@@ -282,10 +281,7 @@ export const ProjectView: React.FC = () => {
 
       setProject(updated);
       setCurrentLevelId(prevId => {
-        if (
-          prevId &&
-          updated.levels.some(l => l.id === prevId)
-        ) {
+        if (prevId && updated.levels.some(l => l.id === prevId)) {
           return prevId;
         }
         return updated.levels[0]?.id ?? null;
@@ -296,10 +292,8 @@ export const ProjectView: React.FC = () => {
   }
 
   function renumberLevels(levels: Level[]): Level[] {
-    // Sort by elevation first
     const sorted = [...levels].sort((a, b) => a.elevation - b.elevation);
 
-    // Find index of ground floor (elevation closest to 0)
     let groundIndex = 0;
     let groundDiff = Math.abs(sorted[0].elevation);
     for (let i = 1; i < sorted.length; i++) {
@@ -310,12 +304,10 @@ export const ProjectView: React.FC = () => {
       }
     }
 
-    // Rename basements
     for (let i = groundIndex - 1, count = 1; i >= 0; i--, count++) {
       sorted[i].name = `Basement ${count}`;
     }
 
-    // Rename floors
     for (let i = groundIndex, count = 1; i < sorted.length; i++, count++) {
       sorted[i].name = `Floor ${count}`;
     }
@@ -343,26 +335,21 @@ export const ProjectView: React.FC = () => {
 
     if (direction === "above") {
       if (next) {
-        // Insert between anchor and next
         elevation = (anchor.elevation + next.elevation) / 2;
       } else {
-        // No level above yet; step up
         elevation = anchor.elevation + 10;
       }
     } else {
-      // "below"
       if (prev) {
-        // Insert between prev and anchor
         elevation = (prev.elevation + anchor.elevation) / 2;
       } else {
-        // No level below yet; step down
         elevation = anchor.elevation - 10;
       }
     }
 
     const newLevel: Level = {
       id: `level-${Date.now()}`,
-      name: "", // temporary, renumberLevels() will fix this
+      name: "",
       elevation,
       geometry: createEmptyGeometry(),
     };
@@ -402,7 +389,7 @@ export const ProjectView: React.FC = () => {
       return prevId;
     });
     void saveProject(nextProject);
-}
+  }
 
   function updateProjectLevelGeometry(
     levelId: string,
@@ -410,17 +397,107 @@ export const ProjectView: React.FC = () => {
   ) {
     if (!project) return;
 
-    const levels = project.levels.map(level =>
-      level.id === levelId
-        ? {
-            ...level,
-            geometry: {
-              ...newGeometry,
-              rooms: newGeometry.rooms.map(ensureRoomMetadata),
-            },
-          }
-        : level
-    );
+    // Start from a normalized copy of all levels
+    let levels = project.levels.map(level => ({
+      ...level,
+      geometry: {
+        rooms: (level.geometry.rooms ?? []).map(ensureRoomMetadata),
+        walls: level.geometry.walls ?? [],
+        doors: level.geometry.doors ?? [],
+        windows: level.geometry.windows ?? [],
+        stairs: level.geometry.stairs ?? [],
+      },
+    }));
+
+    const activeIndex = levels.findIndex(l => l.id === levelId);
+    if (activeIndex === -1) return;
+
+    const newRooms = (newGeometry.rooms ?? []).map(ensureRoomMetadata);
+    const newStairs = newGeometry.stairs ?? [];
+
+    // Update the active level geometry
+    levels[activeIndex] = {
+      ...levels[activeIndex],
+      geometry: {
+        ...levels[activeIndex].geometry,
+        ...newGeometry,
+        rooms: newRooms,
+        stairs: newStairs,
+      },
+    };
+
+    // Sync stairs between this level and their target levels
+    const activeLinkIds = new Set(newStairs.map(s => s.linkId));
+
+    newStairs.forEach(stair => {
+      const targetIndex = levels.findIndex(
+        l => l.id === stair.targetLevelId
+      );
+      if (targetIndex === -1) return;
+
+      const targetLevel = levels[targetIndex];
+      const targetGeom = targetLevel.geometry;
+      const targetStairs = targetGeom.stairs ?? [];
+
+      const partnerIndex = targetStairs.findIndex(
+        s =>
+          s.linkId === stair.linkId &&
+          s.targetLevelId === levelId
+      );
+
+      const existingPartner =
+        partnerIndex >= 0 ? targetStairs[partnerIndex] : null;
+
+      const partner = {
+        ...(existingPartner ?? stair),
+        id: existingPartner ? existingPartner.id : `${stair.id}-peer`,
+        x: stair.x,
+        y: stair.y,
+        width: stair.width,
+        length: stair.length,
+        type: stair.type,
+        linkId: stair.linkId,
+        direction: stair.direction === "up" ? "down" : "up",
+        targetLevelId: levelId,
+      };
+
+      const updatedTargetStairs =
+        partnerIndex >= 0
+          ? targetStairs.map((s, i) =>
+              i === partnerIndex ? partner : s
+            )
+          : [...targetStairs, partner];
+
+      levels[targetIndex] = {
+        ...targetLevel,
+        geometry: {
+          ...targetGeom,
+          stairs: updatedTargetStairs,
+        },
+      };
+    });
+
+    // Remove partner stairs on other levels whose linkId was deleted
+    levels = levels.map(level => {
+      if (level.id === levelId) return level;
+      const g = level.geometry;
+      const stairs = g.stairs ?? [];
+      const filtered = stairs.filter(
+        s =>
+          !(
+            s.targetLevelId === levelId &&
+            !activeLinkIds.has(s.linkId)
+          )
+      );
+      if (filtered === stairs) return level;
+      return {
+        ...level,
+        geometry: {
+          ...g,
+          stairs: filtered,
+        },
+      };
+    });
 
     const next = normalizeProject({ ...project, levels });
     setProject(next);
@@ -461,14 +538,11 @@ export const ProjectView: React.FC = () => {
     ) ?? null;
 
   function handleRoomMetadataChange(updatedRoom: Room) {
-    if (!currentLevel) {
-      // Nothing to update if there is no active level
-      return;
-    }
+    if (!currentLevel) return;
 
     const geom = currentLevel.geometry;
 
-    const nextRooms = geom.rooms.map((r) =>
+    const nextRooms = geom.rooms.map(r =>
       r.id === updatedRoom.id ? ensureRoomMetadata(updatedRoom) : r
     );
 
@@ -587,6 +661,8 @@ export const ProjectView: React.FC = () => {
           currentTool={currentTool}
           onCommitGeometry={handleCommitGeometry}
           onSelectRoom={setSelectedRoomId}
+          onNavigateLevel={handleChangeLevel}
+          stairTargetLevelId={underlayLevel?.id ?? null}
         />
       </main>
     </div>

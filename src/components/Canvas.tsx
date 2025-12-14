@@ -11,6 +11,7 @@ import type {
   FloorGeometry,
   Wall,
   WindowOpening,
+  Stair,
 } from "../types";
 import { Tool } from "../types";
 import { GRID_SIZE, MIN_ZOOM, MAX_ZOOM } from "../constants";
@@ -52,6 +53,10 @@ interface CanvasProps {
   currentTool: Tool;
   onCommitGeometry: (newGeom: FloorGeometry) => void;
   onSelectRoom?: (roomId: string | null) => void;
+
+  // Optional – currently not used for UI control, but wired up from ProjectView
+  onNavigateLevel?: (levelId: string) => void;
+  stairTargetLevelId?: string | null;
 }
 
 type MouseButton = 0 | 1 | 2;
@@ -138,12 +143,13 @@ export const Canvas: React.FC<CanvasProps> = ({
   currentTool,
   onCommitGeometry,
   onSelectRoom,
+  onNavigateLevel,   // currently unused but kept for future
+  stairTargetLevelId,
 }) => {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const { theme } = useTheme();
   const palette = getCanvasPalette(theme);
 
-  // theme-driven background for the grid area
   const canvasBackground =
     theme === "dark"
       ? "#101010"
@@ -170,6 +176,14 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [openingDraft, setOpeningDraft] =
     useState<OpeningDraft | null>(null);
 
+  // Stair draft (create / resize)
+  const [stairDraftStart, setStairDraftStart] =
+    useState<GridPoint | null>(null);
+  const [stairDraftCurrent, setStairDraftCurrent] =
+    useState<GridPoint | null>(null);
+  const [editingStairId, setEditingStairId] =
+    useState<string | null>(null);
+
   // Pan drag
   const [isPanning, setIsPanning] = useState(false);
   const [panLast, setPanLast] = useState<{
@@ -181,26 +195,26 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [hoverCell, setHoverCell] =
     useState<GridPoint | null>(null);
 
+  // Room drag (move existing room)
+  const [roomDragState, setRoomDragState] = useState<{
+    roomId: string;
+    startCell: GridPoint;
+  } | null>(null);
+
   // For Ctrl/Cmd+Z from inside canvas (noop for now)
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        e.key.toLowerCase() === "z"
-      ) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
       }
     }
     window.addEventListener("keydown", onKeyDown);
-    return () =>
-      window.removeEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
   const getRootRect = useCallback(() => {
     const el = rootRef.current;
-    return el
-      ? el.getBoundingClientRect()
-      : new DOMRect(0, 0, 1, 1);
+    return el ? el.getBoundingClientRect() : new DOMRect(0, 0, 1, 1);
   }, []);
 
   function handleWheel(e: React.WheelEvent) {
@@ -227,6 +241,21 @@ export const Canvas: React.FC<CanvasProps> = ({
     setPanLast(null);
   }
 
+  function findStairAtCell(cell: GridPoint): Stair | null {
+    const stairs = geometry.stairs ?? [];
+    for (const s of stairs) {
+      if (
+        cell.x >= s.x &&
+        cell.x < s.x + s.width &&
+        cell.y >= s.y &&
+        cell.y < s.y + s.length
+      ) {
+        return s;
+      }
+    }
+    return null;
+  }
+
   function handleMouseDown(e: React.MouseEvent) {
     e.preventDefault();
 
@@ -251,6 +280,13 @@ export const Canvas: React.FC<CanvasProps> = ({
       GRID_SIZE
     );
 
+    // Reset stair editing state when switching tools
+    if (currentTool !== Tool.Stair) {
+      setStairDraftStart(null);
+      setStairDraftCurrent(null);
+      setEditingStairId(null);
+    }
+
     if (currentTool === Tool.Room && button === 0) {
       const existing = findRoomAtGrid(
         cell.x,
@@ -258,9 +294,19 @@ export const Canvas: React.FC<CanvasProps> = ({
         geometry.rooms
       );
       if (existing) {
+        // Select and prepare to drag this room
         onSelectRoom?.(existing.id);
+        setRoomDragState({
+          roomId: existing.id,
+          startCell: cell,
+        });
         return;
       }
+
+      // No existing room here: start drawing a new one
+      setDragStartCell(cell);
+      setDragCurrentCell(cell);
+      return;
     }
 
     if (currentTool === Tool.Pan && button === 0) {
@@ -268,9 +314,25 @@ export const Canvas: React.FC<CanvasProps> = ({
       return;
     }
 
-    if (currentTool === Tool.Room && button === 0) {
-      setDragStartCell(cell);
-      setDragCurrentCell(cell);
+    if (currentTool === Tool.Stair && button === 0) {
+      const hit = findStairAtCell(cell);
+      if (hit) {
+        // Start resizing existing stair
+        setEditingStairId(hit.id);
+        setStairDraftStart({ x: hit.x, y: hit.y });
+        setStairDraftCurrent({
+          x: hit.x + hit.width - 1,
+          y: hit.y + hit.length - 1,
+        });
+        onSelectRoom?.(null);
+        return;
+      }
+
+      // Start drafting a new stair
+      setEditingStairId(null);
+      setStairDraftStart(cell);
+      setStairDraftCurrent(cell);
+      onSelectRoom?.(null);
       return;
     }
 
@@ -281,8 +343,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
 
     if (
-      (currentTool === Tool.Door ||
-        currentTool === Tool.Window) &&
+      (currentTool === Tool.Door || currentTool === Tool.Window) &&
       button === 0
     ) {
       const hit = hitTestWallAtPoint(
@@ -326,6 +387,13 @@ export const Canvas: React.FC<CanvasProps> = ({
       return;
     }
 
+    if (currentTool === Tool.Stair && (e.buttons & 1)) {
+      if (stairDraftStart) {
+        setStairDraftCurrent(cell);
+        return;
+      }
+    }
+
     if (dragStartCell) {
       setDragCurrentCell(cell);
       return;
@@ -352,21 +420,71 @@ export const Canvas: React.FC<CanvasProps> = ({
       }
     }
 
-    if (
-      currentTool === Tool.Erase &&
-      e.buttons & 1
-    ) {
+    if (currentTool === Tool.Erase && (e.buttons & 1)) {
       handleEraseAtPoint(e.clientX, e.clientY);
     }
+  }
+
+  function finalizeStairDraft(
+    start: GridPoint,
+    end: GridPoint,
+    editingId: string | null
+  ) {
+    const minX = Math.min(start.x, end.x);
+    const minY = Math.min(start.y, end.y);
+    const maxX = Math.max(start.x, end.x);
+    const maxY = Math.max(start.y, end.y);
+
+    const width = maxX - minX + 1;
+    const length = maxY - minY + 1;
+
+    if (width <= 0 || length <= 0) return;
+
+    const stairs = geometry.stairs ?? [];
+
+    if (editingId) {
+      const nextStairs = stairs.map(s =>
+        s.id === editingId
+          ? {
+              ...s,
+              x: minX,
+              y: minY,
+              width,
+              length,
+            }
+          : s
+      );
+      const newGeom: FloorGeometry = {
+        ...geometry,
+        stairs: nextStairs,
+      };
+      onCommitGeometry(newGeom);
+      return;
+    }
+
+    const stair: Stair = {
+      id: makeId("stair"),
+      x: minX,
+      y: minY,
+      width,
+      length,
+      type: "straight",
+      direction: "up",
+      linkId: makeId("stair-link"),
+      targetLevelId: stairTargetLevelId ?? "",
+    };
+
+    const newGeom: FloorGeometry = {
+      ...geometry,
+      stairs: [...stairs, stair],
+    };
+    onCommitGeometry(newGeom);
   }
 
   function handleMouseUp(e: React.MouseEvent) {
     const button = e.button as MouseButton;
 
-    if (
-      isPanning &&
-      (button === 0 || button === 1 || button === 2)
-    ) {
+    if (isPanning && (button === 0 || button === 1 || button === 2)) {
       endPan();
       return;
     }
@@ -380,11 +498,94 @@ export const Canvas: React.FC<CanvasProps> = ({
       GRID_SIZE
     );
 
+    // Finalize room drag (move existing room + its perimeter walls)
+    if (currentTool === Tool.Room && roomDragState) {
+      const dragState = roomDragState;
+      setRoomDragState(null);
+
+      const dx = cell.x - dragState.startCell.x;
+      const dy = cell.y - dragState.startCell.y;
+
+      if (dx !== 0 || dy !== 0) {
+        // Which walls belong to this room (perimeter)
+        const wallIdsToMove = new Set<string>();
+
+        const nextRooms = geometry.rooms.map(room => {
+          if (room.id !== dragState.roomId) return room;
+
+          // capture walls BEFORE we mutate geometry
+          const roomWalls = findWallsAroundRoom(room, geometry.walls);
+          roomWalls.forEach(w => wallIdsToMove.add(w.id));
+
+          // If room is defined by cellKeys, shift the cluster and recompute bbox
+          if (room.cellKeys && room.cellKeys.length > 0) {
+            const newCellKeys = room.cellKeys.map(key => {
+              const { x, y } = parseCellKey(key);
+              return `${x + dx},${y + dy}`;
+            });
+
+            const xs = newCellKeys.map(k => parseCellKey(k).x);
+            const ys = newCellKeys.map(k => parseCellKey(k).y);
+            const minX = Math.min(...xs);
+            const minY = Math.min(...ys);
+            const maxX = Math.max(...xs);
+            const maxY = Math.max(...ys);
+
+            return {
+              ...room,
+              cellKeys: newCellKeys,
+              x: minX,
+              y: minY,
+              width: maxX - minX + 1,
+              height: maxY - minY + 1,
+            };
+          }
+
+          // Simple rectangular room
+          return {
+            ...room,
+            x: room.x + dx,
+            y: room.y + dy,
+          };
+        });
+
+        // Move perimeter walls by same delta (doors/windows follow via wallId)
+        const nextWalls = geometry.walls.map(w => {
+          if (!wallIdsToMove.has(w.id)) return w;
+          return {
+            ...w,
+            x1: w.x1 + dx,
+            y1: w.y1 + dy,
+            x2: w.x2 + dx,
+            y2: w.y2 + dy,
+          };
+        });
+
+        const newGeom: FloorGeometry = {
+          ...geometry,
+          rooms: nextRooms,
+          walls: nextWalls,
+        };
+        onCommitGeometry(newGeom);
+        return; // skip selection / other handling
+      }
+      // dx/dy == 0 → no movement; fall through to other logic
+    }
+
+    if (
+      currentTool === Tool.Stair &&
+      stairDraftStart &&
+      stairDraftCurrent
+    ) {
+      finalizeStairDraft(stairDraftStart, stairDraftCurrent, editingStairId);
+      setStairDraftStart(null);
+      setStairDraftCurrent(null);
+      setEditingStairId(null);
+      return;
+    }
+
     if (currentTool === Tool.Room && dragStartCell) {
-      const rectCells = rectCellsBetween(
-        dragStartCell,
-        cell
-      );
+      const rectCells = rectCellsBetween(dragStartCell, cell);
       setSelectedCells(prev =>
         xorRectIntoSelection(prev, rectCells)
       );
@@ -454,30 +655,12 @@ export const Canvas: React.FC<CanvasProps> = ({
     if (isPanning) {
       endPan();
     }
+
+    setStairDraftStart(null);
+    setStairDraftCurrent(null);
+    setEditingStairId(null);
+    setRoomDragState(null);
   }
-
-function finalizeWallDraft(
-  start: GridPoint,
-  end: GridPoint
-): Wall | null {
-  const x1 = start.x;
-  const y1 = start.y;
-  const x2 = end.x;
-  const y2 = end.y;
-
-  // Ignore zero-length walls
-  if (x1 === x2 && y1 === y2) {
-    return null;
-  }
-
-  return {
-    id: "",
-    x1,
-    y1,
-    x2,
-    y2,
-  };
-}
 
   function handleEraseAtPoint(
     clientX: number,
@@ -491,6 +674,20 @@ function finalizeWallDraft(
       camera,
       GRID_SIZE
     );
+
+    // Try to erase a stair first
+    const stair = findStairAtCell(cell);
+    if (stair) {
+      const nextStairs = (geometry.stairs ?? []).filter(
+        s => s.id !== stair.id
+      );
+      const newGeom: FloorGeometry = {
+        ...geometry,
+        stairs: nextStairs,
+      };
+      onCommitGeometry(newGeom);
+      return;
+    }
 
     const hit = hitTestWallAtPoint(
       geometry.walls,
@@ -532,35 +729,35 @@ function finalizeWallDraft(
     }
   }
 
-function confirmRoomSelection() {
-  if (selectedCells.size === 0) return;
-  const room = createRoomFromCellKeys(
-    selectedCells,
-    makeId("room")
-  );
-  if (!room) {
-    setSelectedCells(new Set());
-    return;
-  }
+  function confirmRoomSelection() {
+    if (selectedCells.size === 0) return;
+    const room = createRoomFromCellKeys(
+      selectedCells,
+      makeId("room")
+    );
+    if (!room) {
+      setSelectedCells(new Set());
+      return;
+    }
 
-  if (hasRoomOverlap(geometry.rooms, room)) {
-    setSelectedCells(new Set());
-    return;
-  }
+    if (hasRoomOverlap(geometry.rooms, room)) {
+      setSelectedCells(new Set());
+      return;
+    }
 
-  const walls = perimeterWallsFromCellKeys(
-    selectedCells,
-    () => makeId("wall")
-  );
-  const newGeom: FloorGeometry = {
-    ...geometry,
-    rooms: [...geometry.rooms, room],
-    walls: [...geometry.walls, ...walls],
-  };
-  onCommitGeometry(newGeom);
-  onSelectRoom?.(room.id);
-  setSelectedCells(new Set());
-}
+    const walls = perimeterWallsFromCellKeys(
+      selectedCells,
+      () => makeId("wall")
+    );
+    const newGeom: FloorGeometry = {
+      ...geometry,
+      rooms: [...geometry.rooms, room],
+      walls: [...geometry.walls, ...walls],
+    };
+    onCommitGeometry(newGeom);
+    onSelectRoom?.(room.id);
+    setSelectedCells(new Set());
+  }
 
   function cancelRoomSelection() {
     setSelectedCells(new Set());
@@ -649,6 +846,16 @@ function confirmRoomSelection() {
         palette={palette}
       />
 
+      {/* Draft stair */}
+      {stairDraftStart && stairDraftCurrent && (
+        <DraftStairLayer
+          start={stairDraftStart}
+          current={stairDraftCurrent}
+          camera={camera}
+          palette={palette}
+        />
+      )}
+
       {/* Hover cell */}
       <HoverCellLayer
         hoverCell={hoverCell}
@@ -668,12 +875,8 @@ function confirmRoomSelection() {
           onMouseDown={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
         >
-          <button onClick={confirmRoomSelection}>
-            ✓
-          </button>
-          <button onClick={cancelRoomSelection}>
-            ✕
-          </button>
+          <button onClick={confirmRoomSelection}>✓</button>
+          <button onClick={cancelRoomSelection}>✕</button>
         </div>
       )}
     </div>
@@ -692,9 +895,9 @@ const GridLayer: React.FC<{
     inset: 0,
     backgroundImage: `linear-gradient(to right, ${gridColor} 1px, transparent 1px),
                       linear-gradient(to bottom, ${gridColor} 1px, transparent 1px)`,
-    backgroundSize: `${
+    backgroundSize: `${GRID_SIZE * camera.zoom}px ${
       GRID_SIZE * camera.zoom
-    }px ${GRID_SIZE * camera.zoom}px`,
+    }px`,
     backgroundPosition: `${camera.offset.x}px ${camera.offset.y}px`,
     pointerEvents: "none",
   };
@@ -707,12 +910,10 @@ const GeometryLayer: React.FC<{
   palette: CanvasPalette;
   dimmed?: boolean;
 }> = ({ geometry, camera, palette, dimmed }) => {
-  const baseWallColor = dimmed
-    ? palette.wallDimmed
-    : palette.wall;
-  const baseRoomFill = dimmed
-    ? palette.roomFillDimmed
-    : palette.roomFill;
+  const baseWallColor = dimmed ? palette.wallDimmed : palette.wall;
+  const baseRoomFill = dimmed ? palette.roomFillDimmed : palette.roomFill;
+
+  const stairs = geometry.stairs ?? [];
 
   return (
     <div className="geometry-layer">
@@ -916,6 +1117,69 @@ const GeometryLayer: React.FC<{
           />
         );
       })}
+
+      {/* Stairs */}
+      {stairs.map(stair => {
+        const rect = gridToScreenRect(
+          stair.x,
+          stair.y,
+          stair.x + stair.width,
+          stair.y + stair.length,
+          camera,
+          GRID_SIZE
+        );
+
+        const stepCount = Math.max(3, Math.min(6, stair.length));
+        const stepNodes: React.ReactNode[] = [];
+        for (let i = 0; i < stepCount; i++) {
+          const t = i / (stepCount - 1 || 1);
+          const stepHeight = rect.height / (stepCount * 2);
+          const centerY =
+            rect.top + rect.height * 0.25 + t * rect.height * 0.5;
+
+          const widthFactor = 0.4 + 0.6 * (1 - t);
+          const stepWidth = rect.width * widthFactor;
+          const left = rect.left + (rect.width - stepWidth) / 2;
+
+          stepNodes.push(
+            <div
+              key={`${stair.id}-step-${i}`}
+              style={{
+                position: "absolute",
+                left,
+                top: centerY - stepHeight / 2,
+                width: stepWidth,
+                height: stepHeight,
+                backgroundColor: dimmed
+                  ? palette.wallDimmed
+                  : palette.wall,
+                borderRadius: stepHeight / 2,
+                pointerEvents: "none",
+              }}
+            />
+          );
+        }
+
+        return (
+          <React.Fragment key={stair.id}>
+            <div
+              style={{
+                position: "absolute",
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+                height: rect.height,
+                border: `1px solid ${
+                  dimmed ? palette.wallDimmed : palette.wall
+                }`,
+                boxSizing: "border-box",
+                pointerEvents: "none",
+              }}
+            />
+            {stepNodes}
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 };
@@ -971,6 +1235,7 @@ const DraftSelectionLayer: React.FC<{
 }) => {
   const items: React.ReactNode[] = [];
 
+  // Existing solid cells
   selectedCells.forEach(key => {
     const [x, y] = key.split(",").map(v => parseInt(v, 10));
     const rect = gridToScreenRect(
@@ -996,11 +1261,15 @@ const DraftSelectionLayer: React.FC<{
     );
   });
 
+  let dimsLabel: React.ReactNode = null;
+
   if (dragStartCell && dragCurrentCell) {
     const rectCells = rectCellsBetween(
       dragStartCell,
       dragCurrentCell
     );
+
+    // Preview cells
     rectCells.forEach((key, i) => {
       const [x, y] = key
         .split(",")
@@ -1027,9 +1296,51 @@ const DraftSelectionLayer: React.FC<{
         />
       );
     });
+
+    // Compute RxC for the drag rectangle
+    const minX = Math.min(dragStartCell.x, dragCurrentCell.x);
+    const minY = Math.min(dragStartCell.y, dragCurrentCell.y);
+    const maxX = Math.max(dragStartCell.x, dragCurrentCell.x);
+    const maxY = Math.max(dragStartCell.y, dragCurrentCell.y);
+
+    const cols = maxX - minX + 1;
+    const rows = maxY - minY + 1;
+
+    const rect = gridToScreenRect(
+      minX,
+      minY,
+      maxX + 1,
+      maxY + 1,
+      camera,
+      GRID_SIZE
+    );
+
+    dimsLabel = (
+      <div
+        style={{
+          position: "absolute",
+          left: rect.left,
+          top: rect.top - 18, // just above the selection
+          padding: "2px 6px",
+          fontSize: 11,
+          backgroundColor: "rgba(0, 0, 0, 0.6)",
+          color: "#fff",
+          borderRadius: 3,
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {rows}x{cols}
+      </div>
+    );
   }
 
-  return <>{items}</>;
+  return (
+    <>
+      {items}
+      {dimsLabel}
+    </>
+  );
 };
 
 const DraftWallLayer: React.FC<{
@@ -1098,6 +1409,45 @@ const DraftOpeningLayer: React.FC<{
         backgroundColor: palette.draftOpening,
         transformOrigin: "0 50%",
         transform: `rotate(${rect.angleDeg}deg)`,
+      }}
+    />
+  );
+};
+
+const DraftStairLayer: React.FC<{
+  start: GridPoint | null;
+  current: GridPoint | null;
+  camera: CameraState;
+  palette: CanvasPalette;
+}> = ({ start, current, camera, palette }) => {
+  if (!start || !current) return null;
+
+  const minX = Math.min(start.x, current.x);
+  const minY = Math.min(start.y, current.y);
+  const maxX = Math.max(start.x, current.x);
+  const maxY = Math.max(start.y, current.y);
+
+  const rect = gridToScreenRect(
+    minX,
+    minY,
+    maxX + 1,
+    maxY + 1,
+    camera,
+    GRID_SIZE
+  );
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+        backgroundColor: palette.selectionPreview,
+        border: `1px dashed ${palette.hoverBorder}`,
+        boxSizing: "border-box",
+        pointerEvents: "none",
       }}
     />
   );
