@@ -272,7 +272,7 @@ export function cloneGeometry(geom: FloorGeometry): FloorGeometry {
     walls: geom.walls.map(w => ({ ...w })),
     doors: geom.doors.map(d => ({ ...d })),
     windows: geom.windows.map(w => ({ ...w })),
-    staris: geom.stairs ?? [],
+    stairs: geom.stairs ?? [],
   };
 }
 
