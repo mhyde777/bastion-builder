@@ -21,7 +21,7 @@ import { ProjectHeader } from "./ProjectHeader";
 import { LevelPicker } from "./LevelPicker";
 import { ToolPalette } from "./ToolPalette";
 import { Canvas } from "./Canvas";
-import { RoomMetadataPanel } from "./RoomMetadataPanel";
+// import { RoomMetadataPanel } from "./RoomMetadataPanel";
 import { ensureRoomMetadata } from "../utils/roomMetadata";
 
 // helpers ------------------------------------------------------------
@@ -75,6 +75,21 @@ function normalizeProject(project: Project): Project {
       },
     })),
   };
+}
+
+function getRoomSizeLabel(cells: number): "Cramped" | "Roomy" | "Vast" {
+  if (cells <= 6) return "Cramped";
+  if (cells <= 15) return "Roomy";
+  return "Vast";
+}
+
+function normalizeHexColor(input: string | null | undefined): string | null {
+  if (!input) return null;
+  const s = input.trim();
+  // Only accept #RRGGBB. If you previously stored rgba(), keep it as-is in data,
+  // but fall back the color picker to a default.
+  if (/^#[0-9a-fA-F]{6}$/.test(s)) return s;
+  return null;
 }
 
 // component ----------------------------------------------------------
@@ -631,11 +646,104 @@ export const ProjectView: React.FC = () => {
           currentTool={currentTool}
           setCurrentTool={setCurrentTool}
         />
+        
+        {selectedRoom && (
+          <div className="sidebar-section">
+            <div style={{ marginTop: 10 }}>
+              <label style={{ display: "block", fontSize: 12, color: mutedColor }}>
+                Name
+              </label>
+              <input
+                value={selectedRoom.name ?? ""}
+                onChange={e =>
+                  handleRoomMetadataChange({
+                    ...selectedRoom,
+                    name: e.target.value,
+                  })
+                }
+                placeholder="Room name…"
+                style={{
+                  width: "100%",
+                  marginTop: 6,
+                  padding: 8,
+                  borderRadius: 6,
+                  border: `1px solid ${theme === "light" ? "#ddd" : "#333"}`,
+                  background: theme === "light" ? "#fff" : "#141414",
+                  color: textColor,
+                }}
+              />
+            </div>
 
-        <RoomMetadataPanel
-          room={selectedRoom}
-          onChange={handleRoomMetadataChange}
-        />
+            <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: "block", fontSize: 12, color: mutedColor }}>
+                  Color
+                </label>
+                <input
+                  type="color"
+                  value={normalizeHexColor(selectedRoom.color) ?? "#87cefa"}
+                  onChange={e =>
+                    handleRoomMetadataChange({
+                      ...selectedRoom,
+                      color: e.target.value,
+                    })
+                  }
+                  style={{
+                    width: "100%",
+                    height: 36,
+                    marginTop: 6,
+                    padding: 0,
+                    borderRadius: 6,
+                    border: `1px solid ${theme === "light" ? "#ddd" : "#333"}`,
+                    background: "transparent",
+                    cursor: "pointer",
+                  }}
+                />
+              </div>
+
+              <div style={{ marginTop: 18, fontSize: 13, color: mutedColor, whiteSpace: "nowrap" }}>
+                <strong style={{ color: textColor }}>
+                  {selectedRoom.cellKeys?.length ??
+                    selectedRoom.width * selectedRoom.height}
+                </strong>{" "}
+                cells ·{" "}
+                <strong style={{ color: textColor }}>
+                  {getRoomSizeLabel(
+                    selectedRoom.cellKeys?.length ??
+                      selectedRoom.width * selectedRoom.height
+                  )}
+                </strong>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 10 }}>
+              <label style={{ display: "block", fontSize: 12, color: mutedColor }}>
+                Notes
+              </label>
+              <textarea
+                value={selectedRoom.notes ?? ""}
+                onChange={e =>
+                  handleRoomMetadataChange({
+                    ...selectedRoom,
+                    notes: e.target.value,
+                  })
+                }
+                placeholder="Freeform notes for this room…"
+                rows={5}
+                style={{
+                  width: "100%",
+                  marginTop: 6,
+                  padding: 8,
+                  borderRadius: 6,
+                  border: `1px solid ${theme === "light" ? "#ddd" : "#333"}`,
+                  background: theme === "light" ? "#fff" : "#141414",
+                  color: textColor,
+                  resize: "vertical",
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         {saveError && (
           <div
