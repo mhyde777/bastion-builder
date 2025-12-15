@@ -87,51 +87,54 @@ interface CanvasPalette {
 function getCanvasPalette(theme: string): CanvasPalette {
   if (theme === "dark") {
     return {
-      gridLine: "rgba(255,255,255,0.35)",
-      roomFill: "rgba(135,206,250,0.30)",
-      roomFillDimmed: "rgba(135,206,250,0.12)",
-      wall: "rgba(255,255,255,0.80)",
-      wallDimmed: "rgba(255,255,255,0.30)",
-      door: "rgba(144,238,144,0.95)",
-      window: "rgba(173,216,230,0.95)",
-      selectionSolid: "rgba(135,206,250,0.55)",
-      selectionPreview: "rgba(135,206,250,0.28)",
+      // Subtle grid, high-contrast walls, readable fills
+      gridLine: "rgba(255,255,255,0.08)",
+      roomFill: "rgba(59,130,246,0.18)",       // blue-500 @ low alpha
+      roomFillDimmed: "rgba(59,130,246,0.08)",
+      wall: "rgba(180,180,190,0.85)",
+      wallDimmed: "rgba(180,180,190,0.28)",
+      door: "rgba(34,197,94,0.92)",            // green-500
+      window: "rgba(56,189,248,0.92)",         // sky-400
+      selectionSolid: "rgba(59,130,246,0.40)",
+      selectionPreview: "rgba(59,130,246,0.22)",
       draftWall: "rgba(255,255,255,0.55)",
-      draftOpening: "rgba(144,238,144,0.65)",
-      hoverBorder: "rgba(255,255,255,0.65)",
+      draftOpening: "rgba(34,197,94,0.60)",
+      hoverBorder: "rgba(255,255,255,0.45)",
     };
   }
 
   if (theme === "blueprint") {
     return {
-      gridLine: "rgba(0,255,255,0.45)",
-      roomFill: "rgba(0,191,255,0.30)",
-      roomFillDimmed: "rgba(0,191,255,0.14)",
-      wall: "rgba(240,248,255,0.90)",
-      wallDimmed: "rgba(240,248,255,0.40)",
-      door: "rgba(144,238,144,0.95)",
-      window: "rgba(176,224,230,0.95)",
-      selectionSolid: "rgba(135,206,250,0.60)",
-      selectionPreview: "rgba(135,206,250,0.30)",
-      draftWall: "rgba(240,248,255,0.70)",
-      draftOpening: "rgba(144,238,144,0.70)",
-      hoverBorder: "rgba(240,248,255,0.70)",
+      // Blueprint: cyan grid, off-white walls, cool fills
+      gridLine: "rgba(56,189,248,0.18)",
+      roomFill: "rgba(56,189,248,0.16)",
+      roomFillDimmed: "rgba(56,189,248,0.08)",
+      wall: "rgba(180,210,235,0.90)",
+      wallDimmed: "rgba(180,210,235,0.35)",
+      door: "rgba(34,197,94,0.92)",
+      window: "rgba(125,211,252,0.92)",        // sky-300
+      selectionSolid: "rgba(56,189,248,0.36)",
+      selectionPreview: "rgba(56,189,248,0.20)",
+      draftWall: "rgba(226,232,240,0.62)",
+      draftOpening: "rgba(34,197,94,0.62)",
+      hoverBorder: "rgba(226,232,240,0.55)",
     };
   }
 
+  // light theme
   return {
-    gridLine: "rgba(0,0,0,0.25)",
-    roomFill: "rgba(0,0,120,0.22)",
-    roomFillDimmed: "rgba(0,0,120,0.10)",
-    wall: "rgba(0,0,0,0.80)",
-    wallDimmed: "rgba(0,0,0,0.20)",
-    door: "rgba(0,180,0,0.85)",
-    window: "rgba(0,150,200,0.85)",
-    selectionSolid: "rgba(50,150,255,0.35)",
-    selectionPreview: "rgba(50,150,255,0.20)",
-    draftWall: "rgba(0,0,0,0.45)",
-    draftOpening: "rgba(0,255,0,0.50)",
-    hoverBorder: "rgba(0,0,0,0.45)",
+    gridLine: "rgba(15,23,42,0.10)",           // slate-900 @ low alpha
+    roomFill: "rgba(37,99,235,0.14)",          // blue-600
+    roomFillDimmed: "rgba(37,99,235,0.07)",
+    wall: "rgba(15,23,42,0.72)",
+    wallDimmed: "rgba(15,23,42,0.22)",
+    door: "rgba(22,163,74,0.85)",
+    window: "rgba(2,132,199,0.85)",
+    selectionSolid: "rgba(37,99,235,0.26)",
+    selectionPreview: "rgba(37,99,235,0.16)",
+    draftWall: "rgba(15,23,42,0.40)",
+    draftOpening: "rgba(22,163,74,0.50)",
+    hoverBorder: "rgba(15,23,42,0.35)",
   };
 }
 
@@ -222,7 +225,11 @@ export const Canvas: React.FC<CanvasProps> = ({
   const palette = getCanvasPalette(theme);
 
   const canvasBackground =
-    theme === "dark" ? "#101010" : theme === "blueprint" ? "#00152e" : "#f4f4f8";
+    theme === "dark"
+      ? "#0b0f14"
+      : theme === "blueprint"
+      ? "#021026"
+      : "#f7f8fb";
 
   const [dragStartCell, setDragStartCell] = useState<GridPoint | null>(null);
   const [dragCurrentCell, setDragCurrentCell] = useState<GridPoint | null>(null);
@@ -993,7 +1000,9 @@ const GeometryLayer: React.FC<{
         if (hideWallIds && hideWallIds.has(door.wallId)) return null;
         const wall = geometry.walls.find(w => w.id === door.wallId);
         if (!wall) return null;
-        const rect = computeOpeningRectOnWall(wall, door.segStart, door.segEnd, camera);
+        const raw = computeOpeningRectOnWall(wall, door.segStart, door.segEnd, camera);
+        const rect = inflateOpeningRect(raw, camera);
+
         return (
           <div
             key={door.id}
@@ -1006,6 +1015,8 @@ const GeometryLayer: React.FC<{
               backgroundColor: palette.door,
               transformOrigin: "0 50%",
               transform: `rotate(${rect.angleDeg}deg)`,
+              borderRadius: rect.height / 2,
+              pointerEvents: "none",
             }}
           />
         );
@@ -1016,7 +1027,8 @@ const GeometryLayer: React.FC<{
         if (hideWallIds && hideWallIds.has(win.wallId)) return null;
         const wall = geometry.walls.find(w => w.id === win.wallId);
         if (!wall) return null;
-        const rect = computeOpeningRectOnWall(wall, win.segStart, win.segEnd, camera);
+        const raw = computeOpeningRectOnWall(wall, win.segStart, win.segEnd, camera);
+        const rect = inflateOpeningRect(raw, camera);
         return (
           <div
             key={win.id}
@@ -1332,6 +1344,29 @@ function wallToScreenSegment(
   };
 }
 
+function inflateOpeningRect(
+  rect: { left: number; top: number; width: number; height: number; angleDeg: number },
+  camera: CameraState
+) {
+  // thickness boost + small length boost
+  const thicknessMul = 2.2; // make it noticeably thicker than a wall
+  const padAlong = (GRID_SIZE * camera.zoom) / 10; // extend a bit along the wall
+
+  const newHeight = rect.height * thicknessMul;
+  const newTop = rect.top - (newHeight - rect.height) / 2;
+
+  const newWidth = rect.width + padAlong * 2;
+  const newLeft = rect.left - padAlong;
+
+  return {
+    ...rect,
+    left: newLeft,
+    top: newTop,
+    width: newWidth,
+    height: newHeight,
+  };
+}
+
 const DraftSelectionLayer: React.FC<{
   selectedCells: Set<string>;
   dragStartCell: GridPoint | null;
@@ -1457,7 +1492,8 @@ const DraftOpeningLayer: React.FC<{
   const range = openingSegmentRange(opening.wall, opening.tStart, opening.tCurrent);
   if (!range) return null;
 
-  const rect = computeOpeningRectOnWall(opening.wall, range.segStart, range.segEnd, camera);
+  const raw = computeOpeningRectOnWall(opening.wall, range.segStart, range.segEnd, camera);
+  const rect = inflateOpeningRect(raw, camera);
   return (
     <div
       style={{

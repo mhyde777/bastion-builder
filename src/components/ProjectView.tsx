@@ -573,29 +573,31 @@ export const ProjectView: React.FC = () => {
 
   const appBg =
     theme === "dark"
-      ? "#101010"
+      ? "#0b0f14"
       : theme === "blueprint"
-      ? "#00152e"
-      : "#f4f4f8";
+      ? "#021026"
+      : "#f7f8fb";
 
   const panelBg =
     theme === "dark"
-      ? "#1f1f1f"
+      ? "#111827"     // slate-900-ish
       : theme === "blueprint"
-      ? "#022143"
+      ? "#071a33"
       : "#ffffff";
 
   const textColor =
     theme === "dark"
-      ? "#f0f0f0"
+      ? "#e5e7eb"
       : theme === "blueprint"
-      ? "#f5f7ff"
-      : "#111111";
+      ? "#e6f0ff"
+      : "#0f172a";
 
   const mutedColor =
-    theme === "dark" || theme === "blueprint"
-      ? "#9bb3d6"
-      : "#666666";
+    theme === "dark"
+      ? "#9ca3af"
+      : theme === "blueprint"
+      ? "#8fb3e6"
+      : "#64748b";
 
   return (
     <div
