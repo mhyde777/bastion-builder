@@ -13,7 +13,6 @@ import type {
   Wall,
   WindowOpening,
   Stair,
-  Room,
 } from "../types";
 import { Tool } from "../types";
 import { GRID_SIZE, MIN_ZOOM, MAX_ZOOM } from "../constants";
@@ -217,7 +216,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   currentTool,
   onCommitGeometry,
   onSelectRoom,
-  onNavigateLevel, // currently unused but kept for future
+  onNavigateLevel: _onNavigateLevel, // intentionally unused for now
   stairTargetLevelId,
 }) => {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -855,7 +854,7 @@ const GeometryLayer: React.FC<{
   const hideWallIds = dragPreview?.ownedWallIds ?? null;
 
   // Helper for preview shifting
-  const shiftWall = useCallback(
+  const _shiftWall = useCallback(
     (w: Wall, dx: number, dy: number): Wall => ({
       ...w,
       x1: w.x1 + dx,

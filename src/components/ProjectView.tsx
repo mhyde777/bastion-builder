@@ -1,10 +1,5 @@
 // src/components/ProjectView.tsx
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import type {
   CameraState,
@@ -12,6 +7,8 @@ import type {
   Level,
   Project,
   Room,
+  Stair,
+  StairDirection,
 } from "../types";
 import { Tool } from "../types";
 import type { Theme } from "../theme";
@@ -165,8 +162,7 @@ export const ProjectView: React.FC = () => {
   useEffect(() => {
     if (!projectId) return;
 
-    const protocol =
-      window.location.protocol === "https:" ? "wss" : "ws";
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const wsUrl = `${protocol}://${window.location.host}/ws/projects?id=${projectId}`;
 
     const ws = new WebSocket(wsUrl);
@@ -190,12 +186,9 @@ export const ProjectView: React.FC = () => {
               if (!prevSel) return null;
               const levelId = currentLevelId ?? incoming.levels[0]?.id;
               const current =
-                incoming.levels.find(l => l.id === levelId) ??
-                incoming.levels[0];
+                incoming.levels.find(l => l.id === levelId) ?? incoming.levels[0];
               if (!current) return null;
-              const exists = current.geometry.rooms.some(
-                r => r.id === prevSel
-              );
+              const exists = current.geometry.rooms.some(r => r.id === prevSel);
               return exists ? prevSel : null;
             });
 
@@ -227,11 +220,7 @@ export const ProjectView: React.FC = () => {
     if (!currentLevelId) {
       return project.levels[0] ?? null;
     }
-    return (
-      project.levels.find(l => l.id === currentLevelId) ??
-      project.levels[0] ??
-      null
-    );
+    return project.levels.find(l => l.id === currentLevelId) ?? project.levels[0] ?? null;
   }, [project, currentLevelId]);
 
   const underlayLevel = useMemo(() => {
@@ -250,9 +239,7 @@ export const ProjectView: React.FC = () => {
     }
     if (!selectedRoomId) return;
 
-    const exists = currentLevel.geometry.rooms.some(
-      r => r.id === selectedRoomId
-    );
+    const exists = currentLevel.geometry.rooms.some(r => r.id === selectedRoomId);
     if (!exists) {
       setSelectedRoomId(null);
     }
@@ -276,10 +263,7 @@ export const ProjectView: React.FC = () => {
         const serverProject = normalizeProject(serverRaw);
         setProject(serverProject);
         setCurrentLevelId(prevId => {
-          if (
-            prevId &&
-            serverProject.levels.some(l => l.id === prevId)
-          ) {
+          if (prevId && serverProject.levels.some(l => l.id === prevId)) {
             return prevId;
           }
           return serverProject.levels[0]?.id ?? null;
@@ -330,15 +314,10 @@ export const ProjectView: React.FC = () => {
     return sorted;
   }
 
-  function insertLevelRelative(
-    anchorLevelId: string,
-    direction: "above" | "below"
-  ) {
+  function insertLevelRelative(anchorLevelId: string, direction: "above" | "below") {
     if (!project) return;
 
-    const sorted = [...project.levels].sort(
-      (a, b) => a.elevation - b.elevation
-    );
+    const sorted = [...project.levels].sort((a, b) => a.elevation - b.elevation);
     const idx = sorted.findIndex(l => l.id === anchorLevelId);
     if (idx === -1) return;
 
@@ -406,10 +385,7 @@ export const ProjectView: React.FC = () => {
     void saveProject(nextProject);
   }
 
-  function updateProjectLevelGeometry(
-    levelId: string,
-    newGeometry: FloorGeometry
-  ) {
+  function updateProjectLevelGeometry(levelId: string, newGeometry: FloorGeometry) {
     if (!project) return;
 
     // Start from a normalized copy of all levels
@@ -445,9 +421,7 @@ export const ProjectView: React.FC = () => {
     const activeLinkIds = new Set(newStairs.map(s => s.linkId));
 
     newStairs.forEach(stair => {
-      const targetIndex = levels.findIndex(
-        l => l.id === stair.targetLevelId
-      );
+      const targetIndex = levels.findIndex(l => l.id === stair.targetLevelId);
       if (targetIndex === -1) return;
 
       const targetLevel = levels[targetIndex];
@@ -455,15 +429,14 @@ export const ProjectView: React.FC = () => {
       const targetStairs = targetGeom.stairs ?? [];
 
       const partnerIndex = targetStairs.findIndex(
-        s =>
-          s.linkId === stair.linkId &&
-          s.targetLevelId === levelId
+        s => s.linkId === stair.linkId && s.targetLevelId === levelId
       );
 
-      const existingPartner =
-        partnerIndex >= 0 ? targetStairs[partnerIndex] : null;
+      const existingPartner = partnerIndex >= 0 ? targetStairs[partnerIndex] : null;
 
-      const partner = {
+      const partnerDirection: StairDirection = stair.direction === "up" ? "down" : "up";
+
+      const partner: Stair = {
         ...(existingPartner ?? stair),
         id: existingPartner ? existingPartner.id : `${stair.id}-peer`,
         x: stair.x,
@@ -472,15 +445,13 @@ export const ProjectView: React.FC = () => {
         length: stair.length,
         type: stair.type,
         linkId: stair.linkId,
-        direction: stair.direction === "up" ? "down" : "up",
+        direction: partnerDirection,
         targetLevelId: levelId,
       };
 
       const updatedTargetStairs =
         partnerIndex >= 0
-          ? targetStairs.map((s, i) =>
-              i === partnerIndex ? partner : s
-            )
+          ? targetStairs.map((s, i) => (i === partnerIndex ? partner : s))
           : [...targetStairs, partner];
 
       levels[targetIndex] = {
@@ -498,11 +469,7 @@ export const ProjectView: React.FC = () => {
       const g = level.geometry;
       const stairs = g.stairs ?? [];
       const filtered = stairs.filter(
-        s =>
-          !(
-            s.targetLevelId === levelId &&
-            !activeLinkIds.has(s.linkId)
-          )
+        s => !(s.targetLevelId === levelId && !activeLinkIds.has(s.linkId))
       );
       if (filtered === stairs) return level;
       return {
@@ -533,9 +500,7 @@ export const ProjectView: React.FC = () => {
     navigate("/");
   }
 
-  function handleThemeChange(
-    e: React.ChangeEvent<HTMLSelectElement>
-  ) {
+  function handleThemeChange(e: React.ChangeEvent<HTMLSelectElement>) {
     setTheme(e.target.value as Theme);
   }
 
@@ -548,9 +513,7 @@ export const ProjectView: React.FC = () => {
   }
 
   const selectedRoom: Room | null =
-    currentLevel.geometry.rooms.find(
-      r => r.id === selectedRoomId
-    ) ?? null;
+    currentLevel.geometry.rooms.find(r => r.id === selectedRoomId) ?? null;
 
   function handleRoomMetadataChange(updatedRoom: Room) {
     if (!currentLevel) return;
@@ -572,56 +535,27 @@ export const ProjectView: React.FC = () => {
   // theme-driven colors for shell UI --------------------------------
 
   const appBg =
-    theme === "dark"
-      ? "#0b0f14"
-      : theme === "blueprint"
-      ? "#021026"
-      : "#f7f8fb";
+    theme === "dark" ? "#0b0f14" : theme === "blueprint" ? "#021026" : "#f7f8fb";
 
   const panelBg =
-    theme === "dark"
-      ? "#111827"     // slate-900-ish
-      : theme === "blueprint"
-      ? "#071a33"
-      : "#ffffff";
+    theme === "dark" ? "#111827" : theme === "blueprint" ? "#071a33" : "#ffffff";
 
-  const textColor =
-    theme === "dark"
-      ? "#e5e7eb"
-      : theme === "blueprint"
-      ? "#e6f0ff"
-      : "#0f172a";
+  const textColor = theme === "dark" ? "#e5e7eb" : theme === "blueprint" ? "#e6f0ff" : "#0f172a";
 
   const mutedColor =
-    theme === "dark"
-      ? "#9ca3af"
-      : theme === "blueprint"
-      ? "#8fb3e6"
-      : "#64748b";
+    theme === "dark" ? "#9ca3af" : theme === "blueprint" ? "#8fb3e6" : "#64748b";
 
   return (
-    <div
-      className="app-root"
-      style={{ backgroundColor: appBg, color: textColor }}
-    >
-      <aside
-        className="sidebar"
-        style={{ backgroundColor: panelBg, color: textColor }}
-      >
+    <div className="app-root" style={{ backgroundColor: appBg, color: textColor }}>
+      <aside className="sidebar" style={{ backgroundColor: panelBg, color: textColor }}>
         <div className="sidebar-header-row">
-          <button
-            className="back-button"
-            onClick={handleBackToHome}
-          >
+          <button className="back-button" onClick={handleBackToHome}>
             ← Home
           </button>
           <div className="theme-selector">
             <label>
               Theme:{" "}
-              <select
-                value={theme}
-                onChange={handleThemeChange}
-              >
+              <select value={theme} onChange={handleThemeChange}>
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
                 <option value="blueprint">Blueprint</option>
@@ -630,10 +564,7 @@ export const ProjectView: React.FC = () => {
           </div>
         </div>
 
-        <ProjectHeader
-          name={project.name}
-          elevation={currentLevel.elevation}
-        />
+        <ProjectHeader name={project.name} elevation={currentLevel.elevation} />
 
         <LevelPicker
           levels={project.levels}
@@ -644,17 +575,12 @@ export const ProjectView: React.FC = () => {
           onDeleteLevel={deleteLevel}
         />
 
-        <ToolPalette
-          currentTool={currentTool}
-          setCurrentTool={setCurrentTool}
-        />
-        
+        <ToolPalette currentTool={currentTool} setCurrentTool={setCurrentTool} />
+
         {selectedRoom && (
           <div className="sidebar-section">
             <div style={{ marginTop: 10 }}>
-              <label style={{ display: "block", fontSize: 12, color: mutedColor }}>
-                Name
-              </label>
+              <label style={{ display: "block", fontSize: 12, color: mutedColor }}>Name</label>
               <input
                 value={selectedRoom.name ?? ""}
                 onChange={e =>
@@ -678,9 +604,7 @@ export const ProjectView: React.FC = () => {
 
             <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center" }}>
               <div style={{ flex: 1 }}>
-                <label style={{ display: "block", fontSize: 12, color: mutedColor }}>
-                  Color
-                </label>
+                <label style={{ display: "block", fontSize: 12, color: mutedColor }}>Color</label>
                 <input
                   type="color"
                   value={normalizeHexColor(selectedRoom.color) ?? "#87cefa"}
@@ -705,61 +629,26 @@ export const ProjectView: React.FC = () => {
 
               <div style={{ marginTop: 18, fontSize: 13, color: mutedColor, whiteSpace: "nowrap" }}>
                 <strong style={{ color: textColor }}>
-                  {selectedRoom.cellKeys?.length ??
-                    selectedRoom.width * selectedRoom.height}
+                  {selectedRoom.cellKeys?.length ?? selectedRoom.width * selectedRoom.height}
                 </strong>{" "}
                 cells ·{" "}
                 <strong style={{ color: textColor }}>
-                  {getRoomSizeLabel(
-                    selectedRoom.cellKeys?.length ??
-                      selectedRoom.width * selectedRoom.height
-                  )}
+                  {getRoomSizeLabel(selectedRoom.cellKeys?.length ?? selectedRoom.width * selectedRoom.height)}
                 </strong>
               </div>
             </div>
 
-            <div style={{ marginTop: 10 }}>
-              <label style={{ display: "block", fontSize: 12, color: mutedColor }}>
-                Notes
-              </label>
-              <textarea
-                value={selectedRoom.notes ?? ""}
-                onChange={e =>
-                  handleRoomMetadataChange({
-                    ...selectedRoom,
-                    notes: e.target.value,
-                  })
-                }
-                placeholder="Freeform notes for this room…"
-                rows={5}
-                style={{
-                  width: "100%",
-                  marginTop: 6,
-                  padding: 8,
-                  borderRadius: 6,
-                  border: `1px solid ${theme === "light" ? "#ddd" : "#333"}`,
-                  background: theme === "light" ? "#fff" : "#141414",
-                  color: textColor,
-                  resize: "vertical",
-                }}
-              />
-            </div>
+            {/* Notes UI removed because Room type does not include notes.
+                If you want notes, add `notes?: string;` to Room in src/types.ts and re-add this block. */}
           </div>
         )}
 
         {saveError && (
-          <div
-            className="save-error"
-            style={{ color: "#b00020" }}
-          >
+          <div className="save-error" style={{ color: "#b00020" }}>
             {saveError}
           </div>
         )}
-        <div
-          className="save-status"
-          style={{ color: mutedColor }}
-        >
-        </div>
+        <div className="save-status" style={{ color: mutedColor }} />
       </aside>
 
       <main className="main-area">
