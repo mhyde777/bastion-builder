@@ -853,18 +853,6 @@ const GeometryLayer: React.FC<{
   const hideRoomId = dragPreview?.roomId ?? null;
   const hideWallIds = dragPreview?.ownedWallIds ?? null;
 
-  // Helper for preview shifting
-  const _shiftWall = useCallback(
-    (w: Wall, dx: number, dy: number): Wall => ({
-      ...w,
-      x1: w.x1 + dx,
-      y1: w.y1 + dy,
-      x2: w.x2 + dx,
-      y2: w.y2 + dy,
-    }),
-    []
-  );
-
   const draggedRoom = hideRoomId
     ? geometry.rooms.find(r => r.id === hideRoomId)
     : undefined;
