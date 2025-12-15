@@ -230,6 +230,16 @@ export const Canvas: React.FC<CanvasProps> = ({
       : theme === "blueprint"
       ? "#021026"
       : "#f7f8fb";
+  
+  // Phase 1: local working geometry snapshot (never synced)
+  // While an interaction is active, Canvas will read from this snapshot instead of the committed geometry prop.
+  // eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
+  const [workingGeometry, setWorkingGeometry] = useState<FloorGeometry | null>(null);
+  const activeGeometry = workingGeometry ?? geometry;
+  const ensureWorkingSnapshot = useCallback(() => {
+    setWorkingGeometry(wg => wg ?? structuredClone(geometry));
+  }, [geometry]);
+
 
   const [dragStartCell, setDragStartCell] = useState<GridPoint | null>(null);
   const [dragCurrentCell, setDragCurrentCell] = useState<GridPoint | null>(null);
@@ -342,6 +352,8 @@ export const Canvas: React.FC<CanvasProps> = ({
       if (existing) {
         onSelectRoom?.(existing.id);
 
+        ensureWorkingSnapshot();
+
         // Airtight: only move walls uniquely owned by this room (never shared).
         const ownedWallIds = computeOwnedWallIds(geometry, existing.id);
 
@@ -360,6 +372,7 @@ export const Canvas: React.FC<CanvasProps> = ({
         return;
       }
 
+      ensureWorkingSnapshot();
       setDragStartCell(cell);
       setDragCurrentCell(cell);
       return;
@@ -371,6 +384,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
 
     if (currentTool === Tool.Stair && button === 0) {
+      ensureWorkingSnapshot();
       const hit = findStairAtCell(cell);
       if (hit) {
         setEditingStairId(hit.id);
@@ -391,12 +405,14 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
 
     if (currentTool === Tool.Wall && button === 0) {
+      ensureWorkingSnapshot();
       setWallStartCell(cell);
       setWallCurrentCell(cell);
       return;
     }
 
     if ((currentTool === Tool.Door || currentTool === Tool.Window) && button === 0) {
+      ensureWorkingSnapshot();
       const hit = hitTestWallAtPoint(geometry.walls, e.clientX, e.clientY, rect, camera);
       if (hit) {
         setOpeningDraft({ wall: hit.wall, tStart: hit.t, tCurrent: hit.t });
@@ -467,6 +483,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   }
 
   function finalizeStairDraft(start: GridPoint, end: GridPoint, editingId: string | null) {
+    const base = workingGeometry ?? geometry;
     const minX = Math.min(start.x, end.x);
     const minY = Math.min(start.y, end.y);
     const maxX = Math.max(start.x, end.x);
@@ -476,13 +493,13 @@ export const Canvas: React.FC<CanvasProps> = ({
     const length = maxY - minY + 1;
     if (width <= 0 || length <= 0) return;
 
-    const stairs = geometry.stairs ?? [];
+    const stairs = base.stairs ?? [];
 
     if (editingId) {
       const nextStairs = stairs.map(s =>
         s.id === editingId ? { ...s, x: minX, y: minY, width, length } : s
       );
-      onCommitGeometry({ ...geometry, stairs: nextStairs });
+      onCommitGeometry({ ...base, stairs: nextStairs });
       return;
     }
 
@@ -498,11 +515,12 @@ export const Canvas: React.FC<CanvasProps> = ({
       targetLevelId: stairTargetLevelId ?? "",
     };
 
-    onCommitGeometry({ ...geometry, stairs: [...stairs, stair] });
+    onCommitGeometry({ ...base, stairs: [...stairs, stair] });
   }
 
   function handleMouseUp(e: React.MouseEvent) {
     const button = e.button as MouseButton;
+    const base = workingGeometry ?? geometry;
 
     if (isPanning && (button === 0 || button === 1 || button === 2)) {
       endPan();
@@ -527,9 +545,10 @@ export const Canvas: React.FC<CanvasProps> = ({
 
       setRoomDragState(null);
       setRoomDragPreview(null);
+      setWorkingGeometry(null);
 
       if (dx !== 0 || dy !== 0) {
-        const nextRooms = geometry.rooms.map(r => {
+        const nextRooms = base.rooms.map(r => {
           if (r.id !== dragState.roomId) return r as any;
 
           const room: any = r;
@@ -560,12 +579,13 @@ export const Canvas: React.FC<CanvasProps> = ({
           return { ...room, x: room.x + dx, y: room.y + dy };
         });
 
-        const nextWalls = geometry.walls.map(w => {
+        const nextWalls = base.walls.map(w => {
           if (!dragState.ownedWallIds.has(w.id)) return w;
           return { ...w, x1: w.x1 + dx, y1: w.y1 + dy, x2: w.x2 + dx, y2: w.y2 + dy };
         });
 
-        onCommitGeometry({ ...geometry, rooms: nextRooms as any, walls: nextWalls });
+        onCommitGeometry({ ...base, rooms: nextRooms as any, walls: nextWalls });
+        setWorkingGeometry(null);
         return;
       }
     }
@@ -575,6 +595,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       setStairDraftStart(null);
       setStairDraftCurrent(null);
       setEditingStairId(null);
+      setWorkingGeometry(null);
       return;
     }
 
@@ -583,17 +604,20 @@ export const Canvas: React.FC<CanvasProps> = ({
       setSelectedCells(prev => xorRectIntoSelection(prev, rectCells));
       setDragStartCell(null);
       setDragCurrentCell(null);
+      setWorkingGeometry(null);
     }
 
     if (currentTool === Tool.Wall && wallStartCell) {
       const wall = finalizeWallDraft(wallStartCell, cell);
       setWallStartCell(null);
       setWallCurrentCell(null);
+      setWorkingGeometry(null);
       if (wall) {
         onCommitGeometry({
-          ...geometry,
-          walls: [...geometry.walls, { ...wall, id: makeId("wall") }],
+          ...base,
+          walls: [...base.walls, { ...wall, id: makeId("wall") }],
         });
+        setWorkingGeometry(null);
       }
     }
 
@@ -607,7 +631,7 @@ export const Canvas: React.FC<CanvasProps> = ({
             segStart: range.segStart,
             segEnd: range.segEnd,
           };
-          onCommitGeometry({ ...geometry, doors: [...geometry.doors, door] });
+          onCommitGeometry({ ...base, doors: [...base.doors, door] });
         } else {
           const win: WindowOpening = {
             id: makeId("window"),
@@ -615,10 +639,11 @@ export const Canvas: React.FC<CanvasProps> = ({
             segStart: range.segStart,
             segEnd: range.segEnd,
           };
-          onCommitGeometry({ ...geometry, windows: [...geometry.windows, win] });
+          onCommitGeometry({ ...base, windows: [...base.windows, win] });
         }
       }
       setOpeningDraft(null);
+      setWorkingGeometry(null);
     }
   }
 
@@ -634,6 +659,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     setStairDraftCurrent(null);
     setEditingStairId(null);
     setRoomDragState(null);
+    setWorkingGeometry(null);
   }
 
   function finalizeWallDraft(start: GridPoint, end: GridPoint): Wall | null {
@@ -744,7 +770,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       )}
 
       <GeometryLayer
-        geometry={geometry}
+        geometry={activeGeometry}
         camera={camera}
         palette={palette}
         dragPreview={roomDragPreview}
